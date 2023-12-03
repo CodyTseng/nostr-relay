@@ -1,0 +1,30 @@
+{
+  "name": "@nostr-relay/common",
+  "version": "1.0.0",
+  "description": "> TODO: description",
+  "author": "codytseng <codytseng98@gmail.com>",
+  "homepage": "",
+  "license": "MIT",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "directories": {
+    "dist": "dist"
+  },
+  "files": [
+    "dist"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
+  "scripts": {
+    "build": "tsc"
+  },
+  "dependencies": {
+    "@noble/curves": "^1.2.0",
+    "lodash": "^4.17.21",
+    "rxjs": "^7.8.1"
+  },
+  "devDependencies": {
+    "@types/lodash": "^4.14.202"
+  }
+}
