@@ -1,4 +1,5 @@
 import {
+  AbstractBroadcastService,
   ConsoleLoggerService,
   Event,
   EventUtils,
@@ -22,15 +23,19 @@ export class SubscriptionService {
   private readonly maxSubscriptionsPerClient: number;
 
   constructor({
+    broadcastService,
     loggerConstructor,
     options,
   }: {
+    broadcastService: AbstractBroadcastService;
     loggerConstructor?: new () => Logger;
     options?: SubscriptionServiceOptions;
-  } = {}) {
+  }) {
     this.logger = new (loggerConstructor ?? ConsoleLoggerService)();
     this.logger.setContext(SubscriptionService.name);
     this.maxSubscriptionsPerClient = options?.maxSubscriptionsPerClient ?? 20;
+
+    broadcastService.on('event', event => this.eventListener(event));
   }
 
   subscribe(client: WebSocket, subscriptionId: string, filters: Filter[]) {
@@ -62,7 +67,7 @@ export class SubscriptionService {
     return this.subscriptionsMap.delete(client);
   }
 
-  broadcast(event: Event) {
+  eventListener(event: Event) {
     try {
       this.subscriptionsMap.forEach((subscriptions, client) => {
         if (client.readyState !== WebSocket.OPEN) {

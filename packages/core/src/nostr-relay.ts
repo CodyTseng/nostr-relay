@@ -1,4 +1,5 @@
 import {
+  AbstractBroadcastService,
   ConsoleLoggerService,
   Event,
   EventId,
@@ -8,6 +9,7 @@ import {
   FilterUtils,
   IncomingMessage,
   InternalError,
+  LocalBroadcastService,
   Logger,
   MessageType,
   OutgoingMessage,
@@ -33,7 +35,6 @@ type NostrRelayOptions = {
   createdAtLowerLimit?: number;
   minPowDifficulty?: number;
   maxSubscriptionsPerClient?: number;
-  slowExecutionThreshold?: number;
   filterResultCacheTtl?: number;
   eventHandlingResultCacheTtl?: number;
 };
@@ -56,35 +57,39 @@ export class NostrRelay {
   constructor({
     domain,
     eventRepository,
+    broadcastService,
     loggerConstructor,
     options,
   }: {
     domain: string;
     eventRepository: EventRepository;
+    broadcastService?: AbstractBroadcastService;
     loggerConstructor?: new () => Logger;
     options?: NostrRelayOptions;
   }) {
     this.domain = domain;
+    this.logger = new (loggerConstructor ?? ConsoleLoggerService)();
+    this.logger.setContext(NostrRelay.name);
+
+    broadcastService = broadcastService ?? new LocalBroadcastService();
     this.subscriptionService = new SubscriptionService({
       loggerConstructor,
+      broadcastService,
       options: {
         maxSubscriptionsPerClient: options?.maxSubscriptionsPerClient,
       },
     });
     this.eventService = new EventService({
       eventRepository,
-      subscriptionService: this.subscriptionService,
+      broadcastService,
       loggerConstructor,
       options: {
         createdAtUpperLimit: options?.createdAtUpperLimit,
         createdAtLowerLimit: options?.createdAtLowerLimit,
         minPowDifficulty: options?.minPowDifficulty,
-        slowExecutionThreshold: options?.slowExecutionThreshold,
         filterResultCacheTtl: options?.filterResultCacheTtl,
       },
     });
-    this.logger = new (loggerConstructor ?? ConsoleLoggerService)();
-    this.logger.setContext(NostrRelay.name);
 
     if (options?.eventHandlingResultCacheTtl) {
       this.eventHandlingResultCache = new LRUCache({

@@ -1,4 +1,5 @@
 import {
+  AbstractBroadcastService,
   ConsoleLoggerService,
   Event,
   EventKind,
@@ -13,19 +14,17 @@ import {
 import { LRUCache } from 'lru-cache';
 import { Observable, distinct, merge, mergeMap } from 'rxjs';
 import { createOutgoingOkMessage } from '../utils';
-import { SubscriptionService } from './subscription.service';
 
 type EventServiceOptions = {
   createdAtUpperLimit?: number;
   createdAtLowerLimit?: number;
   minPowDifficulty?: number;
-  slowExecutionThreshold?: number;
   filterResultCacheTtl?: number;
 };
 
 export class EventService {
   private eventRepository: EventRepository;
-  private subscriptionService: SubscriptionService;
+  private broadcastService: AbstractBroadcastService;
   private logger: Logger;
   private readonly filterResultCache:
     | LRUCache<string, Promise<Event[]>>
@@ -33,27 +32,25 @@ export class EventService {
   private readonly createdAtUpperLimit: number | undefined;
   private readonly createdAtLowerLimit: number | undefined;
   private readonly minPowDifficulty: number | undefined;
-  private readonly slowExecutionThreshold: number;
 
   constructor({
     eventRepository,
-    subscriptionService,
+    broadcastService,
     loggerConstructor,
     options,
   }: {
     eventRepository: EventRepository;
-    subscriptionService: SubscriptionService;
+    broadcastService: AbstractBroadcastService;
     loggerConstructor?: new () => Logger;
     options?: EventServiceOptions;
   }) {
     this.eventRepository = eventRepository;
-    this.subscriptionService = subscriptionService;
+    this.broadcastService = broadcastService;
     this.logger = new (loggerConstructor ?? ConsoleLoggerService)();
     this.logger.setContext(EventService.name);
     this.createdAtUpperLimit = options?.createdAtUpperLimit;
     this.createdAtLowerLimit = options?.createdAtLowerLimit;
     this.minPowDifficulty = options?.minPowDifficulty;
-    this.slowExecutionThreshold = options?.slowExecutionThreshold ?? 500;
 
     const filterResultCacheTtl = options?.filterResultCacheTtl ?? 10;
     if (filterResultCacheTtl > 0) {
@@ -142,18 +139,18 @@ export class EventService {
     return events;
   }
 
-  private handleEphemeralEvent(event: Event): void {
+  private async handleEphemeralEvent(event: Event): Promise<void> {
     if (event.kind === EventKind.AUTHENTICATION) {
       return;
     }
-    this.broadcastEvent(event);
+    await this.broadcastEvent(event);
   }
 
   private async handleRegularEvent(event: Event): Promise<OutgoingMessage> {
     const { isDuplicate } = await this.eventRepository.upsert(event);
 
     if (!isDuplicate) {
-      this.broadcastEvent(event);
+      await this.broadcastEvent(event);
     }
     return createOutgoingOkMessage(
       event.id,
@@ -169,7 +166,7 @@ export class EventService {
     return !!exists;
   }
 
-  private broadcastEvent(event: Event) {
-    process.nextTick(() => this.subscriptionService.broadcast(event));
+  private async broadcastEvent(event: Event) {
+    await this.broadcastService.emitEvent(event);
   }
 }
