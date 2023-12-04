@@ -1,5 +1,5 @@
 import {
-  AbstractBroadcastService,
+  BroadcastService,
   ConsoleLoggerService,
   Event,
   EventUtils,
@@ -27,7 +27,7 @@ export class SubscriptionService {
     loggerConstructor,
     options,
   }: {
-    broadcastService: AbstractBroadcastService;
+    broadcastService: BroadcastService;
     loggerConstructor?: new () => Logger;
     options?: SubscriptionServiceOptions;
   }) {
@@ -35,7 +35,7 @@ export class SubscriptionService {
     this.logger.setContext(SubscriptionService.name);
     this.maxSubscriptionsPerClient = options?.maxSubscriptionsPerClient ?? 20;
 
-    broadcastService.on('event', event => this.eventListener(event));
+    broadcastService.setListener(event => this.eventListener(event));
   }
 
   subscribe(client: WebSocket, subscriptionId: string, filters: Filter[]) {

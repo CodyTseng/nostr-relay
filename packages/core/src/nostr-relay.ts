@@ -1,5 +1,5 @@
 import {
-  AbstractBroadcastService,
+  BroadcastService,
   ConsoleLoggerService,
   Event,
   EventId,
@@ -9,7 +9,6 @@ import {
   FilterUtils,
   IncomingMessage,
   InternalError,
-  LocalBroadcastService,
   Logger,
   MessageType,
   OutgoingMessage,
@@ -21,6 +20,7 @@ import { LRUCache } from 'lru-cache';
 import { endWith, filter, map } from 'rxjs';
 import { WebSocket } from 'ws';
 import { EventService } from './services/event.service';
+import { LocalBroadcastService } from './services/local-broadcast.service';
 import { SubscriptionService } from './services/subscription.service';
 import {
   createOutgoingEoseMessage,
@@ -63,7 +63,7 @@ export class NostrRelay {
   }: {
     domain: string;
     eventRepository: EventRepository;
-    broadcastService?: AbstractBroadcastService;
+    broadcastService?: BroadcastService;
     loggerConstructor?: new () => Logger;
     options?: NostrRelayOptions;
   }) {

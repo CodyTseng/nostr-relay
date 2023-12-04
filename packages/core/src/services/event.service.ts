@@ -1,5 +1,5 @@
 import {
-  AbstractBroadcastService,
+  BroadcastService,
   ConsoleLoggerService,
   Event,
   EventKind,
@@ -24,7 +24,7 @@ type EventServiceOptions = {
 
 export class EventService {
   private eventRepository: EventRepository;
-  private broadcastService: AbstractBroadcastService;
+  private broadcastService: BroadcastService;
   private logger: Logger;
   private readonly filterResultCache:
     | LRUCache<string, Promise<Event[]>>
@@ -40,7 +40,7 @@ export class EventService {
     options,
   }: {
     eventRepository: EventRepository;
-    broadcastService: AbstractBroadcastService;
+    broadcastService: BroadcastService;
     loggerConstructor?: new () => Logger;
     options?: EventServiceOptions;
   }) {
@@ -143,14 +143,14 @@ export class EventService {
     if (event.kind === EventKind.AUTHENTICATION) {
       return;
     }
-    await this.broadcastEvent(event);
+    await this.broadcastService.broadcast(event);
   }
 
   private async handleRegularEvent(event: Event): Promise<OutgoingMessage> {
     const { isDuplicate } = await this.eventRepository.upsert(event);
 
     if (!isDuplicate) {
-      await this.broadcastEvent(event);
+      await this.broadcastService.broadcast(event);
     }
     return createOutgoingOkMessage(
       event.id,
@@ -164,9 +164,5 @@ export class EventService {
 
     const exists = await this.eventRepository.findOne({ ids: [event.id] });
     return !!exists;
-  }
-
-  private async broadcastEvent(event: Event) {
-    await this.broadcastService.emitEvent(event);
   }
 }
