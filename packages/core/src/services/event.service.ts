@@ -25,7 +25,7 @@ export class EventService {
   private broadcastService: BroadcastService;
   private logger: Logger;
   private readonly findLazyCache?:
-    | LazyCache<Filter, Promise<Observable<Event>>>
+    | LazyCache<string, Promise<Observable<Event>>>
     | undefined;
   private readonly createdAtUpperLimit: number | undefined;
   private readonly createdAtLowerLimit: number | undefined;
@@ -114,7 +114,7 @@ export class EventService {
     };
 
     return this.findLazyCache
-      ? this.findLazyCache.get(filter, callback)
+      ? this.findLazyCache.get(JSON.stringify(filter), callback)
       : callback();
   }
 
