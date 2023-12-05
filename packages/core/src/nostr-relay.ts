@@ -16,13 +16,13 @@ import {
   SubscriptionId,
 } from '@nostr-relay/common';
 import { randomUUID } from 'crypto';
-import { LRUCache } from 'lru-cache';
 import { endWith, filter, map } from 'rxjs';
 import { WebSocket } from 'ws';
 import { EventService } from './services/event.service';
 import { LocalBroadcastService } from './services/local-broadcast.service';
 import { SubscriptionService } from './services/subscription.service';
 import {
+  LazyCache,
   createOutgoingEoseMessage,
   createOutgoingEventMessage,
   createOutgoingNoticeMessage,
@@ -49,8 +49,8 @@ export class NostrRelay {
   private readonly eventService: EventService;
   private readonly subscriptionService: SubscriptionService;
   private readonly logger: Logger;
-  private readonly eventHandlingResultCache:
-    | LRUCache<EventId, Promise<OutgoingMessage | void>>
+  private readonly eventHandlingLazyCache:
+    | LazyCache<EventId, Promise<OutgoingMessage | void>>
     | undefined;
   private readonly clientMap = new Map<WebSocket, ClientMetadata>();
 
@@ -92,7 +92,7 @@ export class NostrRelay {
     });
 
     if (options?.eventHandlingResultCacheTtl) {
-      this.eventHandlingResultCache = new LRUCache({
+      this.eventHandlingLazyCache = new LazyCache({
         max: 100 * 1024,
         ttl: options.eventHandlingResultCacheTtl,
       });
@@ -128,26 +128,11 @@ export class NostrRelay {
   }
 
   async event(client: WebSocket, event: Event): Promise<void> {
-    if (!this.eventHandlingResultCache) {
-      const handleResult = await this.eventService.handleEvent(event);
-      return sendMessage(client, handleResult);
-    }
-
-    const cache = this.eventHandlingResultCache.get(event.id);
-    if (cache) {
-      const handleResult = await cache;
-      return sendMessage(client, handleResult);
-    }
-
-    let resolve: (value: OutgoingMessage | void) => void;
-    const promise = new Promise<OutgoingMessage | void>(res => {
-      resolve = res;
-    });
-    this.eventHandlingResultCache.set(event.id, promise);
-
-    const handleResult = await this.eventService.handleEvent(event);
-
-    process.nextTick(() => resolve(handleResult));
+    const handleResult = this.eventHandlingLazyCache
+      ? await this.eventHandlingLazyCache.get(event.id, () =>
+          this.eventService.handleEvent(event),
+        )
+      : await this.eventService.handleEvent(event);
 
     return sendMessage(client, handleResult);
   }

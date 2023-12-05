@@ -9,11 +9,9 @@ import {
   Filter,
   Logger,
   OutgoingMessage,
-  observableToArray,
 } from '@nostr-relay/common';
-import { LRUCache } from 'lru-cache';
-import { Observable, distinct, merge, mergeMap } from 'rxjs';
-import { createOutgoingOkMessage } from '../utils';
+import { Observable, distinct, from, merge, mergeMap } from 'rxjs';
+import { LazyCache, createOutgoingOkMessage } from '../utils';
 
 type EventServiceOptions = {
   createdAtUpperLimit?: number;
@@ -26,8 +24,8 @@ export class EventService {
   private eventRepository: EventRepository;
   private broadcastService: BroadcastService;
   private logger: Logger;
-  private readonly filterResultCache:
-    | LRUCache<string, Promise<Event[]>>
+  private readonly findLazyCache?:
+    | LazyCache<Filter, Promise<Observable<Event>>>
     | undefined;
   private readonly createdAtUpperLimit: number | undefined;
   private readonly createdAtLowerLimit: number | undefined;
@@ -54,7 +52,7 @@ export class EventService {
 
     const filterResultCacheTtl = options?.filterResultCacheTtl ?? 10;
     if (filterResultCacheTtl > 0) {
-      this.filterResultCache = new LRUCache({
+      this.findLazyCache = new LazyCache({
         max: 1000,
         ttl: filterResultCacheTtl,
       });
@@ -62,9 +60,7 @@ export class EventService {
   }
 
   find(filters: Filter[]): Observable<Event> {
-    return merge(
-      ...filters.map(filter => this.findByFilterFromCache(filter)),
-    ).pipe(
+    return merge(...filters.map(filter => this.findByFilter(filter))).pipe(
       mergeMap(events => events),
       distinct(event => event.id),
     );
@@ -108,35 +104,18 @@ export class EventService {
     }
   }
 
-  private async findByFilterFromCache(
-    filter: Filter,
-  ): Promise<Event[] | Observable<Event>> {
-    if (!this.filterResultCache) {
-      return this.eventRepository.find(filter);
-    }
+  private async findByFilter(filter: Filter): Promise<Observable<Event>> {
+    const callback = async () => {
+      let findResult = this.eventRepository.find(filter);
+      if (findResult instanceof Promise) {
+        findResult = await findResult;
+      }
+      return Array.isArray(findResult) ? from(findResult) : findResult;
+    };
 
-    const cacheKey = JSON.stringify(filter);
-    const cache = this.filterResultCache.get(cacheKey);
-    if (cache) {
-      const events = await cache;
-      return events;
-    }
-
-    let resolve: (value: Event[]) => void;
-    const promise = new Promise<Event[]>(res => {
-      resolve = res;
-    });
-    this.filterResultCache.set(cacheKey, promise);
-
-    const promiseOrObserable = await this.eventRepository.find(filter);
-    const events =
-      promiseOrObserable instanceof Observable
-        ? await observableToArray(promiseOrObserable)
-        : promiseOrObserable;
-
-    process.nextTick(() => resolve(events));
-
-    return events;
+    return this.findLazyCache
+      ? this.findLazyCache.get(filter, callback)
+      : callback();
   }
 
   private async handleEphemeralEvent(event: Event): Promise<void> {

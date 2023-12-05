@@ -11,7 +11,7 @@ export interface EventRepository {
 
   find(
     filter: Filter,
-  ): Promise<Event[]> | Promise<Observable<Event>> | Observable<Event>;
+  ): Promise<Event[] | Observable<Event>> | Observable<Event> | Event[];
 
   findOne(filter: Filter): Promise<Event | null>;
 }
