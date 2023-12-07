@@ -21,9 +21,9 @@ type EventServiceOptions = {
 };
 
 export class EventService {
-  private eventRepository: EventRepository;
-  private broadcastService: BroadcastService;
-  private logger: Logger;
+  private readonly eventRepository: EventRepository;
+  private readonly broadcastService: BroadcastService;
+  private readonly logger: Logger;
   private readonly findLazyCache?:
     | LazyCache<string, Promise<Observable<Event>>>
     | undefined;
