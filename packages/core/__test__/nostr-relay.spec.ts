@@ -4,6 +4,7 @@ import {
   Client,
   ClientReadyState,
   Event,
+  EventRepository,
   EventUtils,
   Filter,
   MessageType,
@@ -19,11 +20,7 @@ describe('NostrRelay', () => {
   beforeEach(() => {
     nostrRelay = new NostrRelay({
       domain: 'test',
-      eventRepository: {
-        upsert: jest.fn(),
-        find: jest.fn(),
-        findOne: jest.fn(),
-      },
+      eventRepository: {} as EventRepository,
     });
 
     client = {
@@ -80,11 +77,7 @@ describe('NostrRelay', () => {
     it('should cache handle result', async () => {
       const nostrRelayWithCache = new NostrRelay({
         domain: 'test',
-        eventRepository: {
-          upsert: jest.fn(),
-          find: jest.fn(),
-          findOne: jest.fn(),
-        },
+        eventRepository: {} as EventRepository,
         options: {
           eventHandlingResultCacheTtl: 1000,
         },
@@ -219,6 +212,39 @@ describe('NostrRelay', () => {
         nostrRelay.req(client, subscriptionId, filters),
       ).rejects.toThrow(Error);
     });
+
+    it('should handle req successfully if NIP-42 is not enabled and filter contains encrypted direct message kind', async () => {
+      const nostrRelayWithoutDomain = new NostrRelay({
+        eventRepository: {} as EventRepository,
+      });
+      const subscriptionId: SubscriptionId = 'subscriptionId';
+      const filters: Filter[] = [{ kinds: [4] }];
+      const events = [{ id: 'a', kind: 4 }] as Event[];
+
+      const mockSubscribe = jest
+        .spyOn(nostrRelayWithoutDomain['subscriptionService'], 'subscribe')
+        .mockImplementation();
+      const mockFind = jest
+        .spyOn(nostrRelayWithoutDomain['eventService'], 'find')
+        .mockReturnValue(from(events));
+
+      await nostrRelayWithoutDomain.req(client, subscriptionId, filters);
+
+      expect(mockSubscribe).toHaveBeenCalledWith(
+        client,
+        subscriptionId,
+        filters,
+      );
+      expect(mockFind).toHaveBeenCalledWith(filters);
+      expect(client.send).toHaveBeenNthCalledWith(
+        1,
+        JSON.stringify([MessageType.EVENT, subscriptionId, events[0]]),
+      );
+      expect(client.send).toHaveBeenNthCalledWith(
+        2,
+        JSON.stringify([MessageType.EOSE, subscriptionId]),
+      );
+    });
   });
 
   describe('close', () => {
@@ -271,6 +297,19 @@ describe('NostrRelay', () => {
 
       expect(() => nostrRelay.auth(client, signedEvent)).toThrow(
         'client metadata not found, please call handleConnection first',
+      );
+    });
+
+    it('should return directly if domain is not set', async () => {
+      const nostrRelayWithoutDomain = new NostrRelay({
+        eventRepository: {} as EventRepository,
+      });
+      const signedEvent = { id: 'eventId' } as Event;
+
+      nostrRelayWithoutDomain.auth(client, signedEvent);
+
+      expect(client.send).toHaveBeenCalledWith(
+        JSON.stringify([MessageType.OK, signedEvent.id, true, '']),
       );
     });
   });

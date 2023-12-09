@@ -167,7 +167,7 @@ export class NostrRelay {
         .pipe(
           filter(
             event =>
-              !!this.domain && EventUtils.checkPermission(event, clientPubkey),
+              !this.domain || EventUtils.checkPermission(event, clientPubkey),
           ),
           map(event => createOutgoingEventMessage(subscriptionId, event)),
           endWith(createOutgoingEoseMessage(subscriptionId)),
