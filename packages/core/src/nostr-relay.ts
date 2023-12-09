@@ -104,7 +104,8 @@ export class NostrRelay {
   }
 
   async handleDisconnect(client: Client) {
-    this.subscriptionService.clear(client);
+    this.clientMap.delete(client);
+    this.subscriptionService.remove(client);
   }
 
   async handleMessage(client: Client, message: IncomingMessage) {
@@ -114,7 +115,7 @@ export class NostrRelay {
     }
     if (message[0] === MessageType.REQ) {
       const [_, subscriptionId, ...filters] = message;
-      return this.req(client, subscriptionId, ...filters);
+      return this.req(client, subscriptionId, filters);
     }
     if (message[0] === MessageType.CLOSE) {
       const [_, subscriptionId] = message;
@@ -124,7 +125,10 @@ export class NostrRelay {
       const [_, signedEvent] = message;
       return this.auth(client, signedEvent);
     }
-    this.logger.warn('unknown message type: ' + message[0]);
+    sendMessage(
+      client,
+      createOutgoingNoticeMessage('invalid: unknown message type'),
+    );
   }
 
   async event(client: Client, event: Event): Promise<void> {
@@ -140,7 +144,7 @@ export class NostrRelay {
   async req(
     client: Client,
     subscriptionId: SubscriptionId,
-    ...filters: Filter[]
+    filters: Filter[],
   ): Promise<void> {
     const clientPubkey = this.clientMap.get(client)?.pubkey;
     if (
@@ -159,7 +163,7 @@ export class NostrRelay {
 
     this.subscriptionService.subscribe(client, subscriptionId, filters);
 
-    const promise = new Promise<void>((resolve, reject) => {
+    await new Promise<void>((resolve, reject) => {
       const event$ = this.eventService.find(filters);
       event$
         .pipe(
@@ -173,17 +177,18 @@ export class NostrRelay {
           complete: () => resolve(),
         });
     });
-    return promise;
   }
 
   close(client: Client, subscriptionId: SubscriptionId): void {
-    this.subscriptionService.unSubscribe(client, subscriptionId);
+    this.subscriptionService.unsubscribe(client, subscriptionId);
   }
 
   auth(client: Client, signedEvent: Event) {
     const clientMetadata = this.clientMap.get(client);
     if (!clientMetadata) {
-      throw new InternalError('');
+      throw new InternalError(
+        'client metadata not found, please call handleConnection first',
+      );
     }
 
     const validateErrorMsg = EventUtils.isSignedEventValid(

@@ -52,19 +52,19 @@ export class SubscriptionService {
     subscriptions.set(subscriptionId, filters);
   }
 
-  unSubscribe(client: Client, subscriptionId: string) {
+  unsubscribe(client: Client, subscriptionId: string) {
     const subscriptions = this.subscriptionsMap.get(client);
     if (!subscriptions) {
       return false;
     }
     const deleteResult = subscriptions.delete(subscriptionId);
     if (subscriptions.size === 0) {
-      this.clear(client);
+      this.remove(client);
     }
     return deleteResult;
   }
 
-  clear(client: Client) {
+  remove(client: Client) {
     return this.subscriptionsMap.delete(client);
   }
 
