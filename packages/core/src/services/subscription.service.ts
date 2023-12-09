@@ -1,5 +1,7 @@
 import {
   BroadcastService,
+  Client,
+  ClientReadyState,
   ConsoleLoggerService,
   Event,
   EventUtils,
@@ -7,7 +9,6 @@ import {
   Logger,
 } from '@nostr-relay/common';
 import { LRUCache } from 'lru-cache';
-import { WebSocket } from 'ws';
 import { createOutgoingEventMessage, sendMessage } from '../utils';
 
 type SubscriptionServiceOptions = {
@@ -16,7 +17,7 @@ type SubscriptionServiceOptions = {
 
 export class SubscriptionService {
   private readonly subscriptionsMap = new Map<
-    WebSocket,
+    Client,
     LRUCache<string, Filter[]>
   >();
   private readonly logger: Logger;
@@ -38,7 +39,7 @@ export class SubscriptionService {
     broadcastService.setListener(event => this.eventListener(event));
   }
 
-  subscribe(client: WebSocket, subscriptionId: string, filters: Filter[]) {
+  subscribe(client: Client, subscriptionId: string, filters: Filter[]) {
     const subscriptions = this.subscriptionsMap.get(client);
     if (!subscriptions) {
       const lruCache = new LRUCache<string, Filter[]>({
@@ -51,7 +52,7 @@ export class SubscriptionService {
     subscriptions.set(subscriptionId, filters);
   }
 
-  unSubscribe(client: WebSocket, subscriptionId: string) {
+  unSubscribe(client: Client, subscriptionId: string) {
     const subscriptions = this.subscriptionsMap.get(client);
     if (!subscriptions) {
       return false;
@@ -63,14 +64,14 @@ export class SubscriptionService {
     return deleteResult;
   }
 
-  clear(client: WebSocket) {
+  clear(client: Client) {
     return this.subscriptionsMap.delete(client);
   }
 
   eventListener(event: Event) {
     try {
       this.subscriptionsMap.forEach((subscriptions, client) => {
-        if (client.readyState !== WebSocket.OPEN) {
+        if (client.readyState !== ClientReadyState.OPEN) {
           return;
         }
         subscriptions.forEach((filters, subscriptionId) => {

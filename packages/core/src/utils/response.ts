@@ -1,4 +1,6 @@
 import {
+  Client,
+  ClientReadyState,
   Event,
   MessageType,
   OutgoingEoseMessage,
@@ -7,13 +9,12 @@ import {
   OutgoingOkMessage,
   SubscriptionId,
 } from '@nostr-relay/common';
-import { WebSocket } from 'ws';
 
 export function sendMessage(
-  client: WebSocket,
+  client: Client,
   message: Array<unknown> | undefined | null | void,
 ): void {
-  if (message) {
+  if (message && client.readyState === ClientReadyState.OPEN) {
     client.send(JSON.stringify(message));
   }
 }

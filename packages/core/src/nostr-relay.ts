@@ -1,5 +1,6 @@
 import {
   BroadcastService,
+  Client,
   ConsoleLoggerService,
   Event,
   EventId,
@@ -17,7 +18,6 @@ import {
 } from '@nostr-relay/common';
 import { randomUUID } from 'crypto';
 import { endWith, filter, map } from 'rxjs';
-import { WebSocket } from 'ws';
 import { EventService } from './services/event.service';
 import { LocalBroadcastService } from './services/local-broadcast.service';
 import { SubscriptionService } from './services/subscription.service';
@@ -52,7 +52,7 @@ export class NostrRelay {
   private readonly eventHandlingLazyCache:
     | LazyCache<EventId, Promise<OutgoingMessage | void>>
     | undefined;
-  private readonly clientMap = new Map<WebSocket, ClientMetadata>();
+  private readonly clientMap = new Map<Client, ClientMetadata>();
 
   constructor({
     domain,
@@ -99,15 +99,15 @@ export class NostrRelay {
     }
   }
 
-  async handleConnection(client: WebSocket) {
+  async handleConnection(client: Client) {
     this.clientMap.set(client, { id: randomUUID() });
   }
 
-  async handleDisconnect(client: WebSocket) {
+  async handleDisconnect(client: Client) {
     this.subscriptionService.clear(client);
   }
 
-  async handleMessage(client: WebSocket, message: IncomingMessage) {
+  async handleMessage(client: Client, message: IncomingMessage) {
     if (message[0] === MessageType.EVENT) {
       const [_, event] = message;
       return this.event(client, event);
@@ -127,7 +127,7 @@ export class NostrRelay {
     this.logger.warn('unknown message type: ' + message[0]);
   }
 
-  async event(client: WebSocket, event: Event): Promise<void> {
+  async event(client: Client, event: Event): Promise<void> {
     const handleResult = this.eventHandlingLazyCache
       ? await this.eventHandlingLazyCache.get(event.id, () =>
           this.eventService.handleEvent(event),
@@ -138,7 +138,7 @@ export class NostrRelay {
   }
 
   async req(
-    client: WebSocket,
+    client: Client,
     subscriptionId: SubscriptionId,
     ...filters: Filter[]
   ): Promise<void> {
@@ -176,11 +176,11 @@ export class NostrRelay {
     return promise;
   }
 
-  close(client: WebSocket, subscriptionId: SubscriptionId): void {
+  close(client: Client, subscriptionId: SubscriptionId): void {
     this.subscriptionService.unSubscribe(client, subscriptionId);
   }
 
-  auth(client: WebSocket, signedEvent: Event) {
+  auth(client: Client, signedEvent: Event) {
     const clientMetadata = this.clientMap.get(client);
     if (!clientMetadata) {
       throw new InternalError('');
