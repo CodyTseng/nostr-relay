@@ -1,7 +1,6 @@
 import {
   BroadcastService,
   Client,
-  ConsoleLoggerService,
   Event,
   EventId,
   EventRepository,
@@ -45,35 +44,33 @@ type ClientMetadata = {
 };
 
 export class NostrRelay {
-  private readonly domain: string;
   private readonly eventService: EventService;
   private readonly subscriptionService: SubscriptionService;
-  private readonly logger: Logger;
   private readonly eventHandlingLazyCache:
     | LazyCache<EventId, Promise<OutgoingMessage | void>>
     | undefined;
   private readonly clientMap = new Map<Client, ClientMetadata>();
+  private readonly domain?: string;
 
   constructor({
-    domain,
     eventRepository,
+    domain,
     broadcastService,
-    loggerConstructor,
+    logger,
     options,
   }: {
-    domain: string;
     eventRepository: EventRepository;
+    domain?: string;
     broadcastService?: BroadcastService;
-    loggerConstructor?: new () => Logger;
+    logger?: Logger;
     options?: NostrRelayOptions;
   }) {
+    // if domain is not set, it means that NIP-42 is not enabled
     this.domain = domain;
-    this.logger = new (loggerConstructor ?? ConsoleLoggerService)();
-    this.logger.setContext(NostrRelay.name);
 
     broadcastService = broadcastService ?? new LocalBroadcastService();
     this.subscriptionService = new SubscriptionService({
-      loggerConstructor,
+      logger,
       broadcastService,
       options: {
         maxSubscriptionsPerClient: options?.maxSubscriptionsPerClient,
@@ -82,7 +79,7 @@ export class NostrRelay {
     this.eventService = new EventService({
       eventRepository,
       broadcastService,
-      loggerConstructor,
+      logger,
       options: {
         createdAtUpperLimit: options?.createdAtUpperLimit,
         createdAtLowerLimit: options?.createdAtLowerLimit,
@@ -148,6 +145,7 @@ export class NostrRelay {
   ): Promise<void> {
     const clientPubkey = this.clientMap.get(client)?.pubkey;
     if (
+      this.domain &&
       filters.some(filter =>
         FilterUtils.hasEncryptedDirectMessageKind(filter),
       ) &&
@@ -167,7 +165,10 @@ export class NostrRelay {
       const event$ = this.eventService.find(filters);
       event$
         .pipe(
-          filter(event => EventUtils.checkPermission(event, clientPubkey)),
+          filter(
+            event =>
+              !!this.domain && EventUtils.checkPermission(event, clientPubkey),
+          ),
           map(event => createOutgoingEventMessage(subscriptionId, event)),
           endWith(createOutgoingEoseMessage(subscriptionId)),
         )
@@ -184,6 +185,10 @@ export class NostrRelay {
   }
 
   auth(client: Client, signedEvent: Event) {
+    if (!this.domain) {
+      return sendMessage(client, createOutgoingOkMessage(signedEvent.id, true));
+    }
+
     const clientMetadata = this.clientMap.get(client);
     if (!clientMetadata) {
       throw new InternalError(

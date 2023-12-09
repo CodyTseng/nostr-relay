@@ -25,15 +25,14 @@ export class SubscriptionService {
 
   constructor({
     broadcastService,
-    loggerConstructor,
+    logger,
     options,
   }: {
     broadcastService: BroadcastService;
-    loggerConstructor?: new () => Logger;
+    logger?: Logger;
     options?: SubscriptionServiceOptions;
   }) {
-    this.logger = new (loggerConstructor ?? ConsoleLoggerService)();
-    this.logger.setContext(SubscriptionService.name);
+    this.logger = logger ?? new ConsoleLoggerService();
     this.maxSubscriptionsPerClient = options?.maxSubscriptionsPerClient ?? 20;
 
     broadcastService.setListener(event => this.eventListener(event));
@@ -87,7 +86,7 @@ export class SubscriptionService {
         });
       });
     } catch (error) {
-      this.logger.error(error);
+      this.logger.error(`${SubscriptionService.name}.eventListener`, error);
     }
   }
 }

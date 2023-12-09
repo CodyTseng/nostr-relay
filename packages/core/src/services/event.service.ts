@@ -34,18 +34,17 @@ export class EventService {
   constructor({
     eventRepository,
     broadcastService,
-    loggerConstructor,
+    logger,
     options,
   }: {
     eventRepository: EventRepository;
     broadcastService: BroadcastService;
-    loggerConstructor?: new () => Logger;
+    logger?: Logger;
     options?: EventServiceOptions;
   }) {
     this.eventRepository = eventRepository;
     this.broadcastService = broadcastService;
-    this.logger = new (loggerConstructor ?? ConsoleLoggerService)();
-    this.logger.setContext(EventService.name);
+    this.logger = logger ?? new ConsoleLoggerService();
     this.createdAtUpperLimit = options?.createdAtUpperLimit;
     this.createdAtLowerLimit = options?.createdAtLowerLimit;
     this.minPowDifficulty = options?.minPowDifficulty;
@@ -92,7 +91,7 @@ export class EventService {
       }
       return this.handleRegularEvent(event);
     } catch (error) {
-      this.logger.error(error);
+      this.logger.error(`${EventService.name}.handleEvent`, error);
       if (error instanceof Error) {
         return createOutgoingOkMessage(
           event.id,
