@@ -3,7 +3,7 @@ import { EventId, Pubkey, Siganature, Tag } from './common.interface';
 export interface Event {
   id: EventId;
   pubkey: Pubkey;
-  createdAt: number;
+  created_at: number;
   kind: number;
   tags: Tag[];
   content: string;

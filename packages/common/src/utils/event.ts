@@ -58,14 +58,14 @@ export class EventUtils {
 
     if (
       !isNil(options.createdAtUpperLimit) &&
-      event.createdAt - now > options.createdAtUpperLimit
+      event.created_at - now > options.createdAtUpperLimit
     ) {
       return `invalid: created_at must not be later than ${options.createdAtUpperLimit} seconds from the current time`;
     }
 
     if (
       !isNil(options.createdAtLowerLimit) &&
-      now - event.createdAt > options.createdAtLowerLimit
+      now - event.created_at > options.createdAtLowerLimit
     ) {
       return `invalid: created_at must not be earlier than ${options.createdAtLowerLimit} seconds from the current time`;
     }
@@ -99,7 +99,7 @@ export class EventUtils {
       sha256([
         0,
         event.pubkey,
-        event.createdAt,
+        event.created_at,
         event.kind,
         event.tags,
         event.content,
@@ -145,10 +145,10 @@ export class EventUtils {
         return event.kind === value;
       }
       if (attribute === 'created_at' && operator === '>') {
-        return event.createdAt > value;
+        return event.created_at > value;
       }
       if (attribute === 'created_at' && operator === '<') {
-        return event.createdAt < value;
+        return event.created_at < value;
       }
     });
   }
@@ -189,7 +189,7 @@ export class EventUtils {
       return 'invalid: the relay url is wrong';
     }
 
-    if (Math.abs(event.createdAt - getTimestampInSeconds()) > 10 * 60) {
+    if (Math.abs(event.created_at - getTimestampInSeconds()) > 10 * 60) {
       return 'invalid: the created_at should be within 10 minutes';
     }
   }
@@ -238,11 +238,11 @@ export class EventUtils {
       return false;
     }
 
-    if (filter.since && event.createdAt < filter.since) {
+    if (filter.since && event.created_at < filter.since) {
       return false;
     }
 
-    if (filter.until && event.createdAt > filter.until) {
+    if (filter.until && event.created_at > filter.until) {
       return false;
     }
 
