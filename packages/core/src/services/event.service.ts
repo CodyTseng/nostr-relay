@@ -66,6 +66,8 @@ export class EventService {
   }
 
   async handleEvent(event: Event): Promise<void | OutgoingMessage> {
+    if (event.kind === EventKind.AUTHENTICATION) return;
+
     const exists = await this.checkEventExists(event);
     if (exists) {
       return createOutgoingOkMessage(
@@ -87,9 +89,9 @@ export class EventService {
     try {
       const eventType = EventUtils.getType(event);
       if (eventType === EventType.EPHEMERAL) {
-        return this.handleEphemeralEvent(event);
+        return await this.handleEphemeralEvent(event);
       }
-      return this.handleRegularEvent(event);
+      return await this.handleRegularEvent(event);
     } catch (error) {
       this.logger.error(`${EventService.name}.handleEvent`, error);
       if (error instanceof Error) {
@@ -118,9 +120,6 @@ export class EventService {
   }
 
   private async handleEphemeralEvent(event: Event): Promise<void> {
-    if (event.kind === EventKind.AUTHENTICATION) {
-      return;
-    }
     await this.broadcastService.broadcast(event);
   }
 
@@ -137,7 +136,7 @@ export class EventService {
     );
   }
 
-  async checkEventExists(event: Event): Promise<boolean> {
+  private async checkEventExists(event: Event): Promise<boolean> {
     if (EventType.EPHEMERAL === EventUtils.getType(event)) return false;
 
     const exists = await this.eventRepository.findOne({ ids: [event.id] });
