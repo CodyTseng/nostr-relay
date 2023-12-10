@@ -18,6 +18,7 @@ describe('eventService', () => {
 
   beforeEach(() => {
     eventRepository = {
+      insert: jest.fn(),
       upsert: jest.fn(),
       find: jest.fn(),
       findOne: jest.fn(),
@@ -140,8 +141,8 @@ describe('eventService', () => {
       expect(broadcastService.broadcast).toHaveBeenCalledWith(event);
     });
 
-    it('should handle regular event successfully', async () => {
-      const event = { id: 'a', kind: EventKind.TEXT_NOTE } as Event;
+    it('should handle replaceable event successfully', async () => {
+      const event = { id: 'a', kind: EventKind.SET_METADATA } as Event;
 
       jest.spyOn(eventRepository, 'findOne').mockResolvedValue(null);
       jest.spyOn(EventUtils, 'validate').mockReturnValue(undefined);
@@ -159,7 +160,7 @@ describe('eventService', () => {
     });
 
     it('should handle regular event successfully with duplicate', async () => {
-      const event = { id: 'a', kind: EventKind.TEXT_NOTE } as Event;
+      const event = { id: 'a', kind: EventKind.SET_METADATA } as Event;
 
       jest.spyOn(eventRepository, 'findOne').mockResolvedValue(null);
       jest.spyOn(EventUtils, 'validate').mockReturnValue(undefined);
@@ -176,12 +177,48 @@ describe('eventService', () => {
       expect(broadcastService.broadcast).not.toHaveBeenCalled();
     });
 
+    it('should handle regular event successfully', async () => {
+      const event = { id: 'a', kind: EventKind.TEXT_NOTE } as Event;
+
+      jest.spyOn(eventRepository, 'findOne').mockResolvedValue(null);
+      jest.spyOn(EventUtils, 'validate').mockReturnValue(undefined);
+      jest
+        .spyOn(eventRepository, 'insert')
+        .mockResolvedValue({ isDuplicate: false });
+
+      expect(await eventService.handleEvent(event)).toEqual([
+        MessageType.OK,
+        event.id,
+        true,
+        '',
+      ]);
+      expect(broadcastService.broadcast).toHaveBeenCalledWith(event);
+    });
+
+    it('should handle regular event successfully with duplicate', async () => {
+      const event = { id: 'a', kind: EventKind.TEXT_NOTE } as Event;
+
+      jest.spyOn(eventRepository, 'findOne').mockResolvedValue(null);
+      jest.spyOn(EventUtils, 'validate').mockReturnValue(undefined);
+      jest
+        .spyOn(eventRepository, 'insert')
+        .mockResolvedValue({ isDuplicate: true });
+
+      expect(await eventService.handleEvent(event)).toEqual([
+        MessageType.OK,
+        event.id,
+        true,
+        'duplicate: the event already exists',
+      ]);
+      expect(broadcastService.broadcast).not.toHaveBeenCalled();
+    });
+
     it('should catch normal Error', async () => {
       const event = { id: 'a', kind: EventKind.TEXT_NOTE } as Event;
 
       jest.spyOn(eventRepository, 'findOne').mockResolvedValue(null);
       jest.spyOn(EventUtils, 'validate').mockReturnValue(undefined);
-      jest.spyOn(eventRepository, 'upsert').mockImplementation(() => {
+      jest.spyOn(eventRepository, 'insert').mockImplementation(() => {
         throw new Error('test');
       });
 
@@ -200,7 +237,7 @@ describe('eventService', () => {
 
       jest.spyOn(eventRepository, 'findOne').mockResolvedValue(null);
       jest.spyOn(EventUtils, 'validate').mockReturnValue(undefined);
-      jest.spyOn(eventRepository, 'upsert').mockRejectedValue('unknown');
+      jest.spyOn(eventRepository, 'insert').mockRejectedValue('unknown');
 
       expect(await eventService.handleEvent(event)).toEqual([
         MessageType.OK,

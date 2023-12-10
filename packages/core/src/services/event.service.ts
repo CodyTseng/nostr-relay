@@ -91,6 +91,13 @@ export class EventService {
       if (eventType === EventType.EPHEMERAL) {
         return await this.handleEphemeralEvent(event);
       }
+      if (
+        [EventType.REPLACEABLE, EventType.PARAMETERIZED_REPLACEABLE].includes(
+          eventType,
+        )
+      ) {
+        return await this.handleReplaceableEvent(event);
+      }
       return await this.handleRegularEvent(event);
     } catch (error) {
       this.logger.error(`${EventService.name}.handleEvent`, error);
@@ -124,6 +131,19 @@ export class EventService {
   }
 
   private async handleRegularEvent(event: Event): Promise<OutgoingMessage> {
+    const { isDuplicate } = await this.eventRepository.insert(event);
+
+    if (!isDuplicate) {
+      await this.broadcastService.broadcast(event);
+    }
+    return createOutgoingOkMessage(
+      event.id,
+      true,
+      isDuplicate ? 'duplicate: the event already exists' : '',
+    );
+  }
+
+  private async handleReplaceableEvent(event: Event): Promise<OutgoingMessage> {
     const { isDuplicate } = await this.eventRepository.upsert(event);
 
     if (!isDuplicate) {
