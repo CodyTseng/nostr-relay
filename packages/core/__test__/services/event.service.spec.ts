@@ -29,6 +29,9 @@ describe('eventService', () => {
     eventService = new EventService({
       eventRepository,
       broadcastService,
+      logger: {
+        error: jest.fn(),
+      },
       options: {
         filterResultCacheTtl: 0,
       },
@@ -189,6 +192,7 @@ describe('eventService', () => {
         'error: test',
       ]);
       expect(broadcastService.broadcast).not.toHaveBeenCalled();
+      expect(eventService['logger'].error).toHaveBeenCalled();
     });
 
     it('should catch unknown error', async () => {
@@ -205,6 +209,7 @@ describe('eventService', () => {
         'error: unknown',
       ]);
       expect(broadcastService.broadcast).not.toHaveBeenCalled();
+      expect(eventService['logger'].error).toHaveBeenCalled();
     });
   });
 });
