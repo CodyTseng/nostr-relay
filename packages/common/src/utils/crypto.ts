@@ -27,7 +27,3 @@ export function schnorrVerify(
 export function schnorrSign(message: Hex, privateKey: PrivKey): string {
   return bytesToHex(schnorr.sign(message, privateKey));
 }
-
-export function getSharedSecret(privateA: PrivKey, publicB: Hex): Hex {
-  return secp256k1.getSharedSecret(privateA, publicB);
-}

@@ -80,6 +80,7 @@ export class EventUtils {
         tag => tag[0] === TagName.NONCE && tag.length === 3,
       );
       if (!nonceTag) {
+        // could not reject an event without a committed target difficulty
         return;
       }
 
@@ -223,13 +224,13 @@ export class EventUtils {
   }
 
   static isMatchingFilter(event: Event, filter: Filter): boolean {
-    if (filter.ids && !filter.ids.some(id => event.id.startsWith(id))) {
+    if (filter.ids && !filter.ids.some(id => id === event.id)) {
       return false;
     }
 
     if (
       filter.authors &&
-      !filter.authors.some(author => event.pubkey.startsWith(author))
+      !filter.authors.some(author => author === EventUtils.getAuthor(event))
     ) {
       return false;
     }
@@ -246,21 +247,7 @@ export class EventUtils {
       return false;
     }
 
-    Object.keys(filter)
-      .filter(key => !!key.match(/^#[a-zA-Z]$/))
-      .forEach(key => {
-        const genericTagName = key[1];
-        const genericTagFilter = filter[key];
-        const eventTag = event.tags.find(
-          ([tagName]) => tagName === genericTagName,
-        );
-        if (!eventTag || eventTag.length <= 1) {
-          return false;
-        }
-        if (intersection(eventTag.slice(1), genericTagFilter).length === 0) {
-          return false;
-        }
-      });
+    // TODO: NIP-50
 
     return true;
   }
