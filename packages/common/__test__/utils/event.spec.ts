@@ -335,6 +335,23 @@ describe('EventUtils', () => {
         }),
       ),
     ).toBe('a734cca70ca3c08511e3c2d5a80827182e2804401fb28013a8f79da4dd6465ac');
+
+    expect(
+      EventUtils.getAuthor(
+        createEvent({
+          kind: 1,
+          content: 'hello from a delegated key',
+          tags: [
+            [
+              'delegation',
+              'a734cca70ca3c08511e3c2d5a80827182e2804401fb28013a8f79da4dd6465ac',
+              'kind=1&created_at<9999999999&created_at>1681822248',
+              'fake',
+            ],
+          ],
+        }),
+      ),
+    ).toBe('a09659cd9ee89cd3743bc29aa67edf1d7d12fb624699fcd3d6d33eef250b01e7');
   });
 
   it('checkPermission', () => {
