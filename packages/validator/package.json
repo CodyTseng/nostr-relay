@@ -1,8 +1,8 @@
 {
   "name": "@nostr-relay/validator",
-  "version": "1.0.0",
-  "description": "> TODO: description",
-  "author": "codytseng <codytseng98@gmail.com>",
+  "version": "0.0.1",
+  "description": "Easily build your customized Nostr Relay.",
+  "author": "codytseng",
   "homepage": "https://github.com/CodyTseng/nostr-relay#readme",
   "license": "MIT",
   "main": "dist/index.js",

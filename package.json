@@ -1,5 +1,6 @@
 {
   "name": "root",
+  "description": "Easily build your customized Nostr Relay.",
   "private": true,
   "workspaces": [
     "packages/*"

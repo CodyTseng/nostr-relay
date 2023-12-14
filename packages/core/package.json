@@ -1,9 +1,9 @@
 {
   "name": "@nostr-relay/core",
-  "version": "1.0.0",
-  "description": "> TODO: description",
-  "author": "codytseng <codytseng98@gmail.com>",
-  "homepage": "",
+  "version": "0.0.1",
+  "description": "Easily build your customized Nostr Relay.",
+  "author": "codytseng",
+  "homepage": "https://github.com/CodyTseng/nostr-relay#readme",
   "license": "MIT",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
@@ -18,6 +18,9 @@
   },
   "scripts": {
     "build": "tsc"
+  },
+  "bugs": {
+    "url": "https://github.com/CodyTseng/nostr-relay/issues"
   },
   "dependencies": {
     "@nostr-relay/common": "^1.0.0",
