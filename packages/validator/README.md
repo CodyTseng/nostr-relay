@@ -1,11 +1,3 @@
-# `validator`
+# @nostr-relay/validator
 
-> TODO: description
-
-## Usage
-
-```
-const validator = require('validator');
-
-// TODO: DEMONSTRATE API
-```
+> Easily build your customized Nostr Relay.

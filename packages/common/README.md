@@ -1,11 +1,3 @@
-# `common`
+# @nostr-relay/common
 
-> TODO: description
-
-## Usage
-
-```
-const common = require('common');
-
-// TODO: DEMONSTRATE API
-```
+> Easily build your customized Nostr Relay.

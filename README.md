@@ -1,3 +1,3 @@
-# @nostr-relay/core
+# nostr-relay
 
 > Easily build your customized Nostr Relay.
