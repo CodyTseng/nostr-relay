@@ -11,6 +11,8 @@ export interface EventRepositoryUpsertResult {
 }
 
 export interface EventRepository {
+  readonly isSearchSupported: boolean;
+
   insert(
     event: Event,
   ): Promise<EventRepositoryInsertResult> | EventRepositoryInsertResult;

@@ -10,7 +10,7 @@ import {
   Logger,
   OutgoingMessage,
 } from '@nostr-relay/common';
-import { Observable, distinct, from, merge, mergeMap } from 'rxjs';
+import { EMPTY, Observable, distinct, from, merge, mergeMap } from 'rxjs';
 import { LazyCache, createOutgoingOkMessage } from '../utils';
 
 type EventServiceOptions = {
@@ -114,6 +114,12 @@ export class EventService {
 
   private async findByFilter(filter: Filter): Promise<Observable<Event>> {
     const callback = async () => {
+      if (
+        filter.search !== undefined &&
+        !this.eventRepository.isSearchSupported
+      ) {
+        return EMPTY;
+      }
       let findResult = this.eventRepository.find(filter);
       if (findResult instanceof Promise) {
         findResult = await findResult;

@@ -18,6 +18,7 @@ describe('eventService', () => {
 
   beforeEach(() => {
     eventRepository = {
+      isSearchSupported: false,
       insert: jest.fn(),
       upsert: jest.fn(),
       find: jest.fn(),
@@ -63,6 +64,10 @@ describe('eventService', () => {
       expect(await observableToArray(eventService.find(filters))).toEqual(
         events,
       );
+
+      expect(
+        await observableToArray(eventService.find([{ search: 'test' }])),
+      ).toEqual([]);
     });
 
     it('should return distinct result', async () => {

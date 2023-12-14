@@ -39,16 +39,20 @@ export class SubscriptionService {
   }
 
   subscribe(client: Client, subscriptionId: string, filters: Filter[]) {
+    // Filter with search is not currently supported.
+    const nonSearchFilters = filters.filter(
+      filter => filter.search === undefined,
+    );
     const subscriptions = this.subscriptionsMap.get(client);
     if (!subscriptions) {
       const lruCache = new LRUCache<string, Filter[]>({
         max: this.maxSubscriptionsPerClient,
       });
-      lruCache.set(subscriptionId, filters);
+      lruCache.set(subscriptionId, nonSearchFilters);
       this.subscriptionsMap.set(client, lruCache);
       return;
     }
-    subscriptions.set(subscriptionId, filters);
+    subscriptions.set(subscriptionId, nonSearchFilters);
   }
 
   unsubscribe(client: Client, subscriptionId: string) {
