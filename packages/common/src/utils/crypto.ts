@@ -1,5 +1,5 @@
 import { bytesToHex, Hex, PrivKey } from '@noble/curves/abstract/utils';
-import { schnorr, secp256k1 } from '@noble/curves/secp256k1';
+import { schnorr } from '@noble/curves/secp256k1';
 import { sha256 as nobleSha256 } from '@noble/hashes/sha256';
 
 export function sha256(message: string | object): string {

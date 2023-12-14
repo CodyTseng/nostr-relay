@@ -107,19 +107,19 @@ export class NostrRelay {
 
   async handleMessage(client: Client, message: IncomingMessage) {
     if (message[0] === MessageType.EVENT) {
-      const [_, event] = message;
+      const [, event] = message;
       return this.event(client, event);
     }
     if (message[0] === MessageType.REQ) {
-      const [_, subscriptionId, ...filters] = message;
+      const [, subscriptionId, ...filters] = message;
       return this.req(client, subscriptionId, filters);
     }
     if (message[0] === MessageType.CLOSE) {
-      const [_, subscriptionId] = message;
+      const [, subscriptionId] = message;
       return this.close(client, subscriptionId);
     }
     if (message[0] === MessageType.AUTH) {
-      const [_, signedEvent] = message;
+      const [, signedEvent] = message;
       return this.auth(client, signedEvent);
     }
     sendMessage(

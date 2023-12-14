@@ -1,4 +1,4 @@
-import { intersection, isNil } from 'lodash';
+import { isNil } from 'lodash';
 import { EventKind, EventType, TagName } from '../enums';
 import { Event, Filter, Tag } from '../interfaces';
 import { schnorrVerify, sha256 } from './crypto';
