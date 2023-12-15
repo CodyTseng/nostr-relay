@@ -21,7 +21,8 @@
     "url": "git+https://github.com/CodyTseng/nostr-relay.git"
   },
   "scripts": {
-    "build": "tsc"
+    "build": "tsc -b -v",
+    "clean": "tsc -b --clean"
   },
   "bugs": {
     "url": "https://github.com/CodyTseng/nostr-relay/issues"
