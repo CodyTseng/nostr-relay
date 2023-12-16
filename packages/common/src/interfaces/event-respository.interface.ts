@@ -1,29 +1,29 @@
+import { Observable } from 'rxjs';
+import { observableToArray } from '../utils';
 import { Event } from './event.interface';
 import { Filter } from './filter.interface';
-import { Observable } from 'rxjs';
-
-export interface EventRepositoryInsertResult {
-  isDuplicate: boolean;
-}
 
 export interface EventRepositoryUpsertResult {
   isDuplicate: boolean;
 }
 
-export interface EventRepository {
+export abstract class EventRepository {
   readonly isSearchSupported: boolean;
 
-  insert(
-    event: Event,
-  ): Promise<EventRepositoryInsertResult> | EventRepositoryInsertResult;
-
-  upsert(
+  abstract upsert(
     event: Event,
   ): Promise<EventRepositoryUpsertResult> | EventRepositoryUpsertResult;
 
-  find(
+  abstract find(
     filter: Filter,
   ): Promise<Event[] | Observable<Event>> | Observable<Event> | Event[];
 
-  findOne(filter: Filter): Promise<Event | null> | Event | null;
+  async findOne(filter: Filter): Promise<Event | null> {
+    let events = await this.find({ ...filter, limit: 1 });
+    if (Array.isArray(events)) {
+      return events[0] ?? null;
+    }
+    events = await observableToArray(events);
+    return events[0] ?? null;
+  }
 }
