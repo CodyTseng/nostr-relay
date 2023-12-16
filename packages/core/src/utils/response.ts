@@ -3,6 +3,7 @@ import {
   ClientReadyState,
   Event,
   MessageType,
+  OutgoingAuthMessage,
   OutgoingEoseMessage,
   OutgoingEventMessage,
   OutgoingNoticeMessage,
@@ -44,4 +45,10 @@ export function createOutgoingEventMessage(
   event: Event,
 ): OutgoingEventMessage {
   return [MessageType.EVENT, subscriptionId, event];
+}
+
+export function createOutgoingAuthMessage(
+  challenge: string,
+): OutgoingAuthMessage {
+  return [MessageType.AUTH, challenge];
 }

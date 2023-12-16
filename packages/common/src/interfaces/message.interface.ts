@@ -18,9 +18,11 @@ export type OutgoingMessage =
   | OutgoingOkMessage
   | OutgoingEventMessage
   | OutgoingEoseMessage
-  | OutgoingNoticeMessage;
+  | OutgoingNoticeMessage
+  | OutgoingAuthMessage;
 
 export type OutgoingOkMessage = [MessageType.OK, EventId, boolean, string];
 export type OutgoingEventMessage = [MessageType.EVENT, SubscriptionId, Event];
 export type OutgoingEoseMessage = [MessageType.EOSE, SubscriptionId];
 export type OutgoingNoticeMessage = [MessageType.NOTICE, string];
+export type OutgoingAuthMessage = [MessageType.AUTH, string];

@@ -41,7 +41,12 @@ describe('NostrRelay', () => {
 
       const metadata = nostrRelay['clientMap'].get(client);
       expect(metadata).toBeDefined();
-      expect(metadata?.id).toStrictEqual(expect.any(String));
+
+      const { id } = metadata!;
+      expect(id).toStrictEqual(expect.any(String));
+      expect(client.send).toHaveBeenCalledWith(
+        JSON.stringify([MessageType.AUTH, id]),
+      );
     });
   });
 

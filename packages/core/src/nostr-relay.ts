@@ -22,6 +22,7 @@ import { LocalBroadcastService } from './services/local-broadcast.service';
 import { SubscriptionService } from './services/subscription.service';
 import {
   LazyCache,
+  createOutgoingAuthMessage,
   createOutgoingEoseMessage,
   createOutgoingEventMessage,
   createOutgoingNoticeMessage,
@@ -97,7 +98,11 @@ export class NostrRelay {
   }
 
   async handleConnection(client: Client) {
-    this.clientMap.set(client, { id: randomUUID() });
+    const id = randomUUID();
+    this.clientMap.set(client, { id });
+    if (this.domain) {
+      sendMessage(client, createOutgoingAuthMessage(id));
+    }
   }
 
   async handleDisconnect(client: Client) {
