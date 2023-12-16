@@ -108,19 +108,19 @@ export class NostrRelay {
   async handleMessage(client: Client, message: IncomingMessage) {
     if (message[0] === MessageType.EVENT) {
       const [, event] = message;
-      return this.event(client, event);
+      return this.handleEventMessage(client, event);
     }
     if (message[0] === MessageType.REQ) {
       const [, subscriptionId, ...filters] = message;
-      return this.req(client, subscriptionId, filters);
+      return this.handleReqMessage(client, subscriptionId, filters);
     }
     if (message[0] === MessageType.CLOSE) {
       const [, subscriptionId] = message;
-      return this.close(client, subscriptionId);
+      return this.handleCloseMessage(client, subscriptionId);
     }
     if (message[0] === MessageType.AUTH) {
       const [, signedEvent] = message;
-      return this.auth(client, signedEvent);
+      return this.handleAuthMessage(client, signedEvent);
     }
     sendMessage(
       client,
@@ -128,7 +128,7 @@ export class NostrRelay {
     );
   }
 
-  async event(client: Client, event: Event): Promise<void> {
+  async handleEventMessage(client: Client, event: Event): Promise<void> {
     const handleResult = this.eventHandlingLazyCache
       ? await this.eventHandlingLazyCache.get(event.id, () =>
           this.eventService.handleEvent(event),
@@ -138,7 +138,7 @@ export class NostrRelay {
     return sendMessage(client, handleResult);
   }
 
-  async req(
+  async handleReqMessage(
     client: Client,
     subscriptionId: SubscriptionId,
     filters: Filter[],
@@ -180,11 +180,11 @@ export class NostrRelay {
     });
   }
 
-  close(client: Client, subscriptionId: SubscriptionId): void {
+  handleCloseMessage(client: Client, subscriptionId: SubscriptionId): void {
     this.subscriptionService.unsubscribe(client, subscriptionId);
   }
 
-  auth(client: Client, signedEvent: Event) {
+  handleAuthMessage(client: Client, signedEvent: Event) {
     if (!this.domain) {
       return sendMessage(client, createOutgoingOkMessage(signedEvent.id, true));
     }

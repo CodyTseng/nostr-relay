@@ -68,7 +68,7 @@ describe('NostrRelay', () => {
         .spyOn(nostrRelay['eventService'], 'handleEvent')
         .mockResolvedValue(handleResult);
 
-      await nostrRelay.event(client, event);
+      await nostrRelay.handleEventMessage(client, event);
 
       expect(mockHandleEvent).toHaveBeenCalledWith(event);
       expect(client.send).toHaveBeenCalledWith(JSON.stringify(handleResult));
@@ -96,8 +96,8 @@ describe('NostrRelay', () => {
         .mockResolvedValue(handleResult);
 
       await Promise.all([
-        nostrRelayWithCache.event(client, event),
-        nostrRelayWithCache.event(client, event),
+        nostrRelayWithCache.handleEventMessage(client, event),
+        nostrRelayWithCache.handleEventMessage(client, event),
       ]);
 
       expect(mockHandleEvent).toHaveBeenCalledTimes(1);
@@ -124,7 +124,7 @@ describe('NostrRelay', () => {
         .spyOn(nostrRelay['eventService'], 'find')
         .mockReturnValue(from(events));
 
-      await nostrRelay.req(client, subscriptionId, filters);
+      await nostrRelay.handleReqMessage(client, subscriptionId, filters);
 
       expect(mockSubscribe).toHaveBeenCalledWith(
         client,
@@ -150,7 +150,7 @@ describe('NostrRelay', () => {
       const subscriptionId: SubscriptionId = 'subscriptionId';
       const filters: Filter[] = [{ kinds: [4] }];
 
-      await nostrRelay.req(client, subscriptionId, filters);
+      await nostrRelay.handleReqMessage(client, subscriptionId, filters);
 
       expect(client.send).toHaveBeenCalledWith(
         JSON.stringify([
@@ -179,7 +179,7 @@ describe('NostrRelay', () => {
         .spyOn(nostrRelay['eventService'], 'find')
         .mockReturnValue(from(events));
 
-      await nostrRelay.req(client, subscriptionId, filters);
+      await nostrRelay.handleReqMessage(client, subscriptionId, filters);
 
       expect(mockSubscribe).toHaveBeenCalledWith(
         client,
@@ -209,7 +209,7 @@ describe('NostrRelay', () => {
         .mockReturnValue(from([undefined as any]));
 
       await expect(
-        nostrRelay.req(client, subscriptionId, filters),
+        nostrRelay.handleReqMessage(client, subscriptionId, filters),
       ).rejects.toThrow(Error);
     });
 
@@ -228,7 +228,11 @@ describe('NostrRelay', () => {
         .spyOn(nostrRelayWithoutDomain['eventService'], 'find')
         .mockReturnValue(from(events));
 
-      await nostrRelayWithoutDomain.req(client, subscriptionId, filters);
+      await nostrRelayWithoutDomain.handleReqMessage(
+        client,
+        subscriptionId,
+        filters,
+      );
 
       expect(mockSubscribe).toHaveBeenCalledWith(
         client,
@@ -255,7 +259,7 @@ describe('NostrRelay', () => {
         .spyOn(nostrRelay['subscriptionService'], 'unsubscribe')
         .mockReturnValue(true);
 
-      nostrRelay.close(client, subscriptionId);
+      nostrRelay.handleCloseMessage(client, subscriptionId);
 
       expect(mockUnsubscribe).toHaveBeenCalledWith(client, subscriptionId);
     });
@@ -270,7 +274,7 @@ describe('NostrRelay', () => {
       jest.spyOn(EventUtils, 'getAuthor').mockReturnValue(pubkey);
 
       nostrRelay.handleConnection(client);
-      nostrRelay.auth(client, signedEvent);
+      nostrRelay.handleAuthMessage(client, signedEvent);
       const metadata = nostrRelay['clientMap'].get(client);
 
       expect(client.send).toHaveBeenCalledWith(
@@ -285,7 +289,7 @@ describe('NostrRelay', () => {
       jest.spyOn(EventUtils, 'isSignedEventValid').mockReturnValue('invalid');
 
       nostrRelay.handleConnection(client);
-      nostrRelay.auth(client, signedEvent);
+      nostrRelay.handleAuthMessage(client, signedEvent);
 
       expect(client.send).toHaveBeenCalledWith(
         JSON.stringify([MessageType.OK, signedEvent.id, false, 'invalid']),
@@ -295,7 +299,7 @@ describe('NostrRelay', () => {
     it('should throw error if client metadata not found', async () => {
       const signedEvent = { id: 'eventId' } as Event;
 
-      expect(() => nostrRelay.auth(client, signedEvent)).toThrow(
+      expect(() => nostrRelay.handleAuthMessage(client, signedEvent)).toThrow(
         'client metadata not found, please call handleConnection first',
       );
     });
@@ -306,7 +310,7 @@ describe('NostrRelay', () => {
       });
       const signedEvent = { id: 'eventId' } as Event;
 
-      nostrRelayWithoutDomain.auth(client, signedEvent);
+      nostrRelayWithoutDomain.handleAuthMessage(client, signedEvent);
 
       expect(client.send).toHaveBeenCalledWith(
         JSON.stringify([MessageType.OK, signedEvent.id, true, '']),
@@ -316,7 +320,9 @@ describe('NostrRelay', () => {
 
   describe('handleMessage', () => {
     it('should handle event message', async () => {
-      const mockEvent = jest.spyOn(nostrRelay, 'event').mockImplementation();
+      const mockEvent = jest
+        .spyOn(nostrRelay, 'handleEventMessage')
+        .mockImplementation();
       const event = { id: 'eventId' } as Event;
 
       await nostrRelay.handleMessage(client, [MessageType.EVENT, event]);
@@ -325,7 +331,9 @@ describe('NostrRelay', () => {
     });
 
     it('should handle req message', async () => {
-      const mockReq = jest.spyOn(nostrRelay, 'req').mockImplementation();
+      const mockReq = jest
+        .spyOn(nostrRelay, 'handleReqMessage')
+        .mockImplementation();
       const subscriptionId: SubscriptionId = 'subscriptionId';
       const filters: Filter[] = [{ kinds: [0, 1] }, { ids: ['a'] }];
 
@@ -339,7 +347,9 @@ describe('NostrRelay', () => {
     });
 
     it('should handle close message', async () => {
-      const mockClose = jest.spyOn(nostrRelay, 'close').mockImplementation();
+      const mockClose = jest
+        .spyOn(nostrRelay, 'handleCloseMessage')
+        .mockImplementation();
       const subscriptionId: SubscriptionId = 'subscriptionId';
 
       await nostrRelay.handleMessage(client, [
@@ -351,7 +361,9 @@ describe('NostrRelay', () => {
     });
 
     it('should handle auth message', async () => {
-      const mockAuth = jest.spyOn(nostrRelay, 'auth').mockImplementation();
+      const mockAuth = jest
+        .spyOn(nostrRelay, 'handleAuthMessage')
+        .mockImplementation();
       const signedEvent = { id: 'eventId' } as Event;
 
       await nostrRelay.handleMessage(client, [MessageType.AUTH, signedEvent]);
