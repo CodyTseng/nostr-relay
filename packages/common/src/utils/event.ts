@@ -211,6 +211,14 @@ export class EventUtils {
     return event.tags.find(([tagName]) => tagName === TagName.DELEGATION);
   }
 
+  static extractDTagValue(event: Event) {
+    const [, dTagValue] = event.tags.find(
+      ([tagName, tagValue]) => tagName === TagName.D && !!tagValue,
+    ) ?? [TagName.D, ''];
+
+    return dTagValue;
+  }
+
   static getAuthor(event: Event, needValidateDelegationEvent = true): string {
     if (
       needValidateDelegationEvent &&

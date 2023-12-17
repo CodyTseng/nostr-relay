@@ -314,6 +314,25 @@ describe('EventUtils', () => {
     ).toBeNull();
   });
 
+  it('extractDTagValue', () => {
+    expect(EventUtils.extractDTagValue(createEvent())).toBe('');
+
+    expect(
+      EventUtils.extractDTagValue(createEvent({ tags: [[TagName.D]] })),
+    ).toBe('');
+
+    expect(
+      EventUtils.extractDTagValue(
+        createEvent({
+          tags: [
+            [TagName.D, 'test'],
+            [TagName.D, 'test2'],
+          ],
+        }),
+      ),
+    ).toBe('test');
+  });
+
   it('getAuthor', () => {
     expect(EventUtils.getAuthor(createEvent())).toBe(
       'a09659cd9ee89cd3743bc29aa67edf1d7d12fb624699fcd3d6d33eef250b01e7',
