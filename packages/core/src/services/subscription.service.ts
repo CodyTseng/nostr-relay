@@ -12,6 +12,7 @@ import { LRUCache } from 'lru-cache';
 import { createOutgoingEventMessage, sendMessage } from '../utils';
 
 type SubscriptionServiceOptions = {
+  logger?: Logger;
   maxSubscriptionsPerClient?: number;
 };
 
@@ -23,17 +24,12 @@ export class SubscriptionService {
   private readonly logger: Logger;
   private readonly maxSubscriptionsPerClient: number;
 
-  constructor({
-    broadcastService,
-    logger,
-    options,
-  }: {
-    broadcastService: BroadcastService;
-    logger?: Logger;
-    options?: SubscriptionServiceOptions;
-  }) {
-    this.logger = logger ?? new ConsoleLoggerService();
-    this.maxSubscriptionsPerClient = options?.maxSubscriptionsPerClient ?? 20;
+  constructor(
+    broadcastService: BroadcastService,
+    options: SubscriptionServiceOptions = {},
+  ) {
+    this.logger = options.logger ?? new ConsoleLoggerService();
+    this.maxSubscriptionsPerClient = options.maxSubscriptionsPerClient ?? 20;
 
     broadcastService.setListener(event => this.eventListener(event));
   }

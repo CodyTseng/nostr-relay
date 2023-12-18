@@ -31,6 +31,9 @@ import {
 } from './utils';
 
 type NostrRelayOptions = {
+  domain?: string;
+  broadcastService?: BroadcastService;
+  logger?: Logger;
   createdAtUpperLimit?: number;
   createdAtLowerLimit?: number;
   minPowDifficulty?: number;
@@ -53,40 +56,26 @@ export class NostrRelay {
   private readonly clientMap = new Map<Client, ClientMetadata>();
   private readonly domain?: string;
 
-  constructor({
-    eventRepository,
-    domain,
-    broadcastService,
-    logger,
-    options,
-  }: {
-    eventRepository: EventRepository;
-    domain?: string;
-    broadcastService?: BroadcastService;
-    logger?: Logger;
-    options?: NostrRelayOptions;
-  }) {
+  constructor(
+    eventRepository: EventRepository,
+    options: NostrRelayOptions = {},
+  ) {
     // if domain is not set, it means that NIP-42 is not enabled
-    this.domain = domain;
+    this.domain = options.domain;
 
-    broadcastService = broadcastService ?? new LocalBroadcastService();
-    this.subscriptionService = new SubscriptionService({
-      logger,
-      broadcastService,
-      options: {
-        maxSubscriptionsPerClient: options?.maxSubscriptionsPerClient,
-      },
+    const broadcastService =
+      options.broadcastService ?? new LocalBroadcastService();
+
+    this.subscriptionService = new SubscriptionService(broadcastService, {
+      logger: options.logger,
+      maxSubscriptionsPerClient: options?.maxSubscriptionsPerClient,
     });
-    this.eventService = new EventService({
-      eventRepository,
-      broadcastService,
-      logger,
-      options: {
-        createdAtUpperLimit: options?.createdAtUpperLimit,
-        createdAtLowerLimit: options?.createdAtLowerLimit,
-        minPowDifficulty: options?.minPowDifficulty,
-        filterResultCacheTtl: options?.filterResultCacheTtl,
-      },
+    this.eventService = new EventService(eventRepository, broadcastService, {
+      logger: options.logger,
+      createdAtUpperLimit: options.createdAtUpperLimit,
+      createdAtLowerLimit: options.createdAtLowerLimit,
+      minPowDifficulty: options.minPowDifficulty,
+      filterResultCacheTtl: options.filterResultCacheTtl,
     });
 
     if (options?.eventHandlingResultCacheTtl) {

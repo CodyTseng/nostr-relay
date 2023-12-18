@@ -18,9 +18,8 @@ describe('NostrRelay', () => {
   let client: Client;
 
   beforeEach(() => {
-    nostrRelay = new NostrRelay({
+    nostrRelay = new NostrRelay({} as EventRepository, {
       domain: 'test',
-      eventRepository: {} as EventRepository,
     });
 
     client = {
@@ -80,12 +79,9 @@ describe('NostrRelay', () => {
     });
 
     it('should cache handle result', async () => {
-      const nostrRelayWithCache = new NostrRelay({
+      const nostrRelayWithCache = new NostrRelay({} as EventRepository, {
         domain: 'test',
-        eventRepository: {} as EventRepository,
-        options: {
-          eventHandlingResultCacheTtl: 1000,
-        },
+        eventHandlingResultCacheTtl: 1000,
       });
       const event = { id: 'eventId' } as Event;
       const handleResult: OutgoingOkMessage = [
@@ -219,9 +215,7 @@ describe('NostrRelay', () => {
     });
 
     it('should handle req successfully if NIP-42 is not enabled and filter contains encrypted direct message kind', async () => {
-      const nostrRelayWithoutDomain = new NostrRelay({
-        eventRepository: {} as EventRepository,
-      });
+      const nostrRelayWithoutDomain = new NostrRelay({} as EventRepository);
       const subscriptionId: SubscriptionId = 'subscriptionId';
       const filters: Filter[] = [{ kinds: [4] }];
       const events = [{ id: 'a', kind: 4 }] as Event[];
@@ -310,9 +304,7 @@ describe('NostrRelay', () => {
     });
 
     it('should return directly if domain is not set', async () => {
-      const nostrRelayWithoutDomain = new NostrRelay({
-        eventRepository: {} as EventRepository,
-      });
+      const nostrRelayWithoutDomain = new NostrRelay({} as EventRepository);
       const signedEvent = { id: 'eventId' } as Event;
 
       nostrRelayWithoutDomain.handleAuthMessage(client, signedEvent);

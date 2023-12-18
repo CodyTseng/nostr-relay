@@ -14,6 +14,7 @@ import { EMPTY, Observable, distinct, from, merge, mergeMap } from 'rxjs';
 import { LazyCache, createOutgoingOkMessage } from '../utils';
 
 type EventServiceOptions = {
+  logger?: Logger;
   createdAtUpperLimit?: number;
   createdAtLowerLimit?: number;
   minPowDifficulty?: number;
@@ -31,25 +32,19 @@ export class EventService {
   private readonly createdAtLowerLimit: number | undefined;
   private readonly minPowDifficulty: number | undefined;
 
-  constructor({
-    eventRepository,
-    broadcastService,
-    logger,
-    options,
-  }: {
-    eventRepository: EventRepository;
-    broadcastService: BroadcastService;
-    logger?: Logger;
-    options?: EventServiceOptions;
-  }) {
+  constructor(
+    eventRepository: EventRepository,
+    broadcastService: BroadcastService,
+    options: EventServiceOptions = {},
+  ) {
     this.eventRepository = eventRepository;
     this.broadcastService = broadcastService;
-    this.logger = logger ?? new ConsoleLoggerService();
-    this.createdAtUpperLimit = options?.createdAtUpperLimit;
-    this.createdAtLowerLimit = options?.createdAtLowerLimit;
-    this.minPowDifficulty = options?.minPowDifficulty;
+    this.logger = options.logger ?? new ConsoleLoggerService();
+    this.createdAtUpperLimit = options.createdAtUpperLimit;
+    this.createdAtLowerLimit = options.createdAtLowerLimit;
+    this.minPowDifficulty = options.minPowDifficulty;
 
-    const filterResultCacheTtl = options?.filterResultCacheTtl ?? 10;
+    const filterResultCacheTtl = options.filterResultCacheTtl ?? 10;
     if (filterResultCacheTtl > 0) {
       this.findLazyCache = new LazyCache({
         max: 1000,

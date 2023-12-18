@@ -27,15 +27,11 @@ describe('eventService', () => {
       broadcast: jest.fn(),
       setListener: jest.fn(),
     };
-    eventService = new EventService({
-      eventRepository,
-      broadcastService,
+    eventService = new EventService(eventRepository, broadcastService, {
       logger: {
         error: jest.fn(),
       },
-      options: {
-        filterResultCacheTtl: 0,
-      },
+      filterResultCacheTtl: 0,
     });
   });
 
@@ -81,10 +77,10 @@ describe('eventService', () => {
     });
 
     it('should use cache', async () => {
-      const eventServiceWithCache = new EventService({
+      const eventServiceWithCache = new EventService(
         eventRepository,
         broadcastService,
-      });
+      );
       const filters = [{}, {}] as Filter[];
       const events = [{ id: 'a' }, { id: 'b' }] as Event[];
 

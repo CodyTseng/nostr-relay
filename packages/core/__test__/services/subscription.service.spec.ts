@@ -17,8 +17,7 @@ describe('SubscriptionService', () => {
 
   beforeEach(() => {
     broadcastService = new LocalBroadcastService();
-    subscriptionService = new SubscriptionService({
-      broadcastService,
+    subscriptionService = new SubscriptionService(broadcastService, {
       logger: {
         error: jest.fn(),
       },
