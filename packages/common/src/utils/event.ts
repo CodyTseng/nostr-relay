@@ -212,6 +212,10 @@ export class EventUtils {
   }
 
   static extractDTagValue(event: Event) {
+    const type = EventUtils.getType(event);
+    if (type === EventType.REPLACEABLE) return '';
+    if (type !== EventType.PARAMETERIZED_REPLACEABLE) return null;
+
     const [, dTagValue] = event.tags.find(
       ([tagName, tagValue]) => tagName === TagName.D && !!tagValue,
     ) ?? [TagName.D, ''];

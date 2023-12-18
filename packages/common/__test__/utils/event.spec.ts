@@ -315,15 +315,27 @@ describe('EventUtils', () => {
   });
 
   it('extractDTagValue', () => {
-    expect(EventUtils.extractDTagValue(createEvent())).toBe('');
+    expect(EventUtils.extractDTagValue(createEvent())).toBeNull();
 
     expect(
-      EventUtils.extractDTagValue(createEvent({ tags: [[TagName.D]] })),
+      EventUtils.extractDTagValue(
+        createEvent({
+          kind: EventKind.SET_METADATA,
+          tags: [[TagName.D, 'test']],
+        }),
+      ),
+    ).toBe('');
+
+    expect(
+      EventUtils.extractDTagValue(
+        createEvent({ kind: EventKind.LONG_FORM_CONTENT, tags: [[TagName.D]] }),
+      ),
     ).toBe('');
 
     expect(
       EventUtils.extractDTagValue(
         createEvent({
+          kind: EventKind.LONG_FORM_CONTENT,
           tags: [
             [TagName.D, 'test'],
             [TagName.D, 'test2'],
