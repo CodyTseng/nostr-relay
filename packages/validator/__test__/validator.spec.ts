@@ -8,8 +8,8 @@ describe('Validator', () => {
     validator = new Validator();
   });
 
-  describe('event message', () => {
-    it('should transform and validate event message', async () => {
+  describe('validateIncomingMessage', () => {
+    it('should validate event message', async () => {
       const event = {
         id: '0000000000000000000000000000000000000000000000000000000000000000',
         pubkey:
@@ -22,26 +22,14 @@ describe('Validator', () => {
       };
       const eventMessage = [MessageType.EVENT, event];
 
-      expect(validator.transformAndValidate(eventMessage)).toEqual(
+      expect(await validator.validateIncomingMessage(eventMessage)).toEqual(
         eventMessage,
       );
       expect(
-        validator.transformAndValidate(JSON.stringify(eventMessage)),
+        await validator.validateIncomingMessage(JSON.stringify(eventMessage)),
       ).toEqual(eventMessage);
       expect(
-        validator.transformAndValidate(
-          Buffer.from(JSON.stringify(eventMessage)),
-        ),
-      ).toEqual(eventMessage);
-
-      expect(await validator.transformAndValidateAsync(eventMessage)).toEqual(
-        eventMessage,
-      );
-      expect(
-        await validator.transformAndValidateAsync(JSON.stringify(eventMessage)),
-      ).toEqual(eventMessage);
-      expect(
-        await validator.transformAndValidateAsync(
+        await validator.validateIncomingMessage(
           Buffer.from(JSON.stringify(eventMessage)),
         ),
       ).toEqual(eventMessage);
@@ -60,33 +48,21 @@ describe('Validator', () => {
       };
       const eventMessage = [MessageType.EVENT, event];
 
-      expect(() => validator.transformAndValidate(eventMessage)).toThrow(
+      expect(validator.validateIncomingMessage(eventMessage)).rejects.toThrow(
         'invalid:',
-      );
-      expect(validator.transformAndValidateAsync(eventMessage)).rejects.toThrow(
-        'invalid:',
-      );
-
-      jest.spyOn(validator['schema'], 'parse').mockImplementation(() => {
-        throw new Error('test');
-      });
-      expect(() => validator.transformAndValidate(eventMessage)).toThrow(
-        'test',
       );
 
       jest
-        .spyOn(validator['schema'], 'parseAsync')
+        .spyOn(validator['incomingMessageSchema'], 'parseAsync')
         .mockRejectedValue(new Error('test'));
-      expect(validator.transformAndValidateAsync(eventMessage)).rejects.toThrow(
+      expect(validator.validateIncomingMessage(eventMessage)).rejects.toThrow(
         'test',
       );
     });
-  });
 
-  describe('req message', () => {
-    it('should transform and validate req message', async () => {
+    it('should validate req message', async () => {
       expect(
-        validator.transformAndValidate([
+        await validator.validateIncomingMessage([
           MessageType.REQ,
           'subscriptionId',
           { kinds: [0, 1] },
@@ -140,18 +116,17 @@ describe('Validator', () => {
         },
       ]);
     });
-  });
 
-  describe('close message', () => {
-    it('should transform and validate close message', async () => {
+    it('should validate close message', async () => {
       expect(
-        validator.transformAndValidate([MessageType.CLOSE, 'subscriptionId']),
+        await validator.validateIncomingMessage([
+          MessageType.CLOSE,
+          'subscriptionId',
+        ]),
       ).toEqual([MessageType.CLOSE, 'subscriptionId']);
     });
-  });
 
-  describe('auth message', () => {
-    it('should transform and validate auth message', async () => {
+    it('should validate auth message', async () => {
       const event = {
         id: '0000000000000000000000000000000000000000000000000000000000000000',
         pubkey:
@@ -164,7 +139,46 @@ describe('Validator', () => {
       };
       const authMessage = [MessageType.AUTH, event];
 
-      expect(validator.transformAndValidate(authMessage)).toEqual(authMessage);
+      expect(await validator.validateIncomingMessage(authMessage)).toEqual(
+        authMessage,
+      );
+    });
+  });
+
+  describe('validateFilter', () => {
+    it('should validate filter', async () => {
+      const filter = {
+        ids: [
+          '0000000000000000000000000000000000000000000000000000000000000000',
+        ],
+        authors: [
+          '0000000000000000000000000000000000000000000000000000000000000000',
+          '1111111111111111111111111111111111111111111111111111111111111111',
+        ],
+        kinds: [0, 1],
+        since: 1700000000000,
+        until: 1701000000000,
+        limit: 10,
+        '#t': ['hello', 'world'],
+      };
+      await expect(validator.validateFilter(filter)).resolves.toEqual(filter);
+    });
+  });
+
+  describe('validateEvent', () => {
+    it('should validate event', async () => {
+      const event = {
+        id: '0000000000000000000000000000000000000000000000000000000000000000',
+        pubkey:
+          '0000000000000000000000000000000000000000000000000000000000000000',
+        kind: 1,
+        content: 'hello nostr',
+        tags: [['hello', 'world']],
+        created_at: 0,
+        sig: '00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000',
+      };
+
+      expect(await validator.validateEvent(event)).toEqual(event);
     });
   });
 });

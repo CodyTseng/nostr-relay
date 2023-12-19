@@ -1,4 +1,4 @@
-import { IncomingReqMessage, MessageType } from '@nostr-relay/common';
+import { Filter, IncomingReqMessage, MessageType } from '@nostr-relay/common';
 import { z } from 'zod';
 import { RequiredValidatorOptions } from '../types';
 import {
@@ -42,7 +42,7 @@ export function createFilterSchema(
     | 'maxLengthPerTagItem'
     | 'maxFilterSearchStringLength'
   >,
-) {
+): z.ZodType<Filter> {
   const { maxFilterIdsLength, maxFilterAuthorsLength, maxFilterKindsLength } =
     options;
   return z

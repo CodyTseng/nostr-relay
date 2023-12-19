@@ -1,4 +1,4 @@
-import { IncomingEventMessage, MessageType } from '@nostr-relay/common';
+import { IncomingEventMessage, MessageType, Event } from '@nostr-relay/common';
 import { z } from 'zod';
 import {
   EventIdSchema,
@@ -19,7 +19,7 @@ export function createEventSchema(
     | 'maxNumberOfTags'
     | 'maxContentLength'
   >,
-) {
+): z.ZodType<Event> {
   return z.object({
     id: EventIdSchema,
     pubkey: PubkeySchema,
