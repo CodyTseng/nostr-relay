@@ -8,7 +8,7 @@ export interface EventRepositoryUpsertResult {
 }
 
 export abstract class EventRepository {
-  readonly isSearchSupported: boolean;
+  readonly isSearchSupported: boolean = false;
 
   abstract upsert(
     event: Event,
