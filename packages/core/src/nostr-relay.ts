@@ -12,11 +12,10 @@ import {
   Logger,
   MessageType,
   OutgoingMessage,
-  Pubkey,
   SubscriptionId,
 } from '@nostr-relay/common';
-import { randomUUID } from 'crypto';
 import { endWith, filter, map } from 'rxjs';
+import { ClientMetadataService } from './services/client-metadata.service';
 import { EventService } from './services/event.service';
 import { LocalBroadcastService } from './services/local-broadcast.service';
 import { SubscriptionService } from './services/subscription.service';
@@ -42,19 +41,14 @@ type NostrRelayOptions = {
   eventHandlingResultCacheTtl?: number;
 };
 
-type ClientMetadata = {
-  id: string;
-  pubkey?: Pubkey;
-};
-
 export class NostrRelay {
   private readonly eventService: EventService;
   private readonly subscriptionService: SubscriptionService;
   private readonly eventHandlingLazyCache:
     | LazyCache<EventId, Promise<OutgoingMessage | void>>
     | undefined;
-  private readonly clientMap = new Map<Client, ClientMetadata>();
   private readonly domain?: string;
+  private readonly clientMetadataService: ClientMetadataService;
 
   constructor(
     eventRepository: EventRepository,
@@ -66,10 +60,16 @@ export class NostrRelay {
     const broadcastService =
       options.broadcastService ?? new LocalBroadcastService();
 
-    this.subscriptionService = new SubscriptionService(broadcastService, {
-      logger: options.logger,
-      maxSubscriptionsPerClient: options?.maxSubscriptionsPerClient,
+    this.clientMetadataService = new ClientMetadataService({
+      maxSubscriptionsPerClient: options.maxSubscriptionsPerClient,
     });
+    this.subscriptionService = new SubscriptionService(
+      broadcastService,
+      this.clientMetadataService,
+      {
+        logger: options.logger,
+      },
+    );
     this.eventService = new EventService(eventRepository, broadcastService, {
       logger: options.logger,
       createdAtUpperLimit: options.createdAtUpperLimit,
@@ -87,16 +87,14 @@ export class NostrRelay {
   }
 
   async handleConnection(client: Client) {
-    const id = randomUUID();
-    this.clientMap.set(client, { id });
+    const { id } = this.clientMetadataService.connect(client);
     if (this.domain) {
       sendMessage(client, createOutgoingAuthMessage(id));
     }
   }
 
   async handleDisconnect(client: Client) {
-    this.clientMap.delete(client);
-    this.subscriptionService.remove(client);
+    this.clientMetadataService.disconnect(client);
   }
 
   async handleMessage(client: Client, message: IncomingMessage) {
@@ -137,7 +135,7 @@ export class NostrRelay {
     subscriptionId: SubscriptionId,
     filters: Filter[],
   ): Promise<void> {
-    const clientPubkey = this.clientMap.get(client)?.pubkey;
+    const clientPubkey = this.clientMetadataService.getPubkey(client);
     if (
       this.domain &&
       filters.some(filter =>
@@ -183,7 +181,7 @@ export class NostrRelay {
       return sendMessage(client, createOutgoingOkMessage(signedEvent.id, true));
     }
 
-    const clientMetadata = this.clientMap.get(client);
+    const clientMetadata = this.clientMetadataService.getMetadata(client);
     if (!clientMetadata) {
       throw new InternalError(
         'client metadata not found, please call handleConnection first',
@@ -204,5 +202,9 @@ export class NostrRelay {
 
     clientMetadata.pubkey = EventUtils.getAuthor(signedEvent);
     return sendMessage(client, createOutgoingOkMessage(signedEvent.id, true));
+  }
+
+  isAuthorized(client: Client): boolean {
+    return this.domain ? !!this.clientMetadataService.getPubkey(client) : true;
   }
 }

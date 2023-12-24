@@ -7,21 +7,28 @@ import {
   Filter,
   MessageType,
 } from '../../../common';
-import { SubscriptionService } from '../../src/services/subscription.service';
+import { ClientMetadataService } from '../../src/services/client-metadata.service';
 import { LocalBroadcastService } from '../../src/services/local-broadcast.service';
+import { SubscriptionService } from '../../src/services/subscription.service';
 
 describe('SubscriptionService', () => {
   let subscriptionService: SubscriptionService;
   let broadcastService: BroadcastService;
+  let clientMetadataService: ClientMetadataService;
   let client: Client;
 
   beforeEach(() => {
     broadcastService = new LocalBroadcastService();
-    subscriptionService = new SubscriptionService(broadcastService, {
-      logger: {
-        error: jest.fn(),
+    clientMetadataService = new ClientMetadataService();
+    subscriptionService = new SubscriptionService(
+      broadcastService,
+      clientMetadataService,
+      {
+        logger: {
+          error: jest.fn(),
+        },
       },
-    });
+    );
     client = {
       readyState: ClientReadyState.OPEN,
       send: jest.fn(),
@@ -36,8 +43,8 @@ describe('SubscriptionService', () => {
       subscriptionService.subscribe(client, subscriptionId, filters);
 
       expect(
-        subscriptionService['subscriptionsMap']
-          .get(client)
+        subscriptionService['clientMetadataService']
+          .getSubscriptions(client)
           ?.get(subscriptionId),
       ).toEqual(filters);
     });
@@ -52,13 +59,13 @@ describe('SubscriptionService', () => {
       subscriptionService.subscribe(client, subscriptionIdB, filtersB);
 
       expect(
-        subscriptionService['subscriptionsMap']
-          .get(client)
+        subscriptionService['clientMetadataService']
+          .getSubscriptions(client)
           ?.get(subscriptionIdA),
       ).toEqual(filtersA);
       expect(
-        subscriptionService['subscriptionsMap']
-          .get(client)
+        subscriptionService['clientMetadataService']
+          .getSubscriptions(client)
           ?.get(subscriptionIdB),
       ).toEqual(filtersB);
     });
@@ -79,29 +86,15 @@ describe('SubscriptionService', () => {
       ).toBeTruthy();
 
       expect(
-        subscriptionService['subscriptionsMap']
-          .get(client)
+        subscriptionService['clientMetadataService']
+          .getSubscriptions(client)
           ?.get(subscriptionIdA),
       ).toBeUndefined();
       expect(
-        subscriptionService['subscriptionsMap']
-          .get(client)
+        subscriptionService['clientMetadataService']
+          .getSubscriptions(client)
           ?.get(subscriptionIdB),
       ).toEqual(filtersB);
-    });
-
-    it('should remove client if no subscriptions', () => {
-      const subscriptionId = 'subscriptionId';
-      const filters = [{}] as Filter[];
-      subscriptionService.subscribe(client, subscriptionId, filters);
-
-      expect(
-        subscriptionService.unsubscribe(client, subscriptionId),
-      ).toBeTruthy();
-
-      expect(
-        subscriptionService['subscriptionsMap'].get(client),
-      ).toBeUndefined();
     });
 
     it('should return false if client is not found', () => {

@@ -38,7 +38,7 @@ describe('NostrRelay', () => {
     it('should add client to clientMap', () => {
       nostrRelay.handleConnection(client);
 
-      const metadata = nostrRelay['clientMap'].get(client);
+      const metadata = nostrRelay['clientMetadataService'].getMetadata(client);
       expect(metadata).toBeDefined();
 
       const { id } = metadata!;
@@ -54,7 +54,9 @@ describe('NostrRelay', () => {
       nostrRelay.handleConnection(client);
       nostrRelay.handleDisconnect(client);
 
-      expect(nostrRelay['clientMap'].get(client)).toBeUndefined();
+      expect(
+        nostrRelay['clientMetadataService'].getMetadata(client),
+      ).toBeUndefined();
     });
   });
 
@@ -165,10 +167,8 @@ describe('NostrRelay', () => {
       const subscriptionId: SubscriptionId = 'subscriptionId';
       const pubkey = 'pubkey';
       const filters: Filter[] = [{ kinds: [4] }];
-      nostrRelay['clientMap'].set(client, {
-        id: randomUUID(),
-        pubkey,
-      });
+      const metadata = nostrRelay['clientMetadataService'].connect(client);
+      metadata.pubkey = pubkey;
       const events = [
         { id: 'a', kind: 4, pubkey, tags: [] as string[][] },
       ] as Event[];
@@ -274,7 +274,7 @@ describe('NostrRelay', () => {
 
       nostrRelay.handleConnection(client);
       nostrRelay.handleAuthMessage(client, signedEvent);
-      const metadata = nostrRelay['clientMap'].get(client);
+      const metadata = nostrRelay['clientMetadataService'].getMetadata(client);
 
       expect(client.send).toHaveBeenCalledWith(
         JSON.stringify([MessageType.OK, signedEvent.id, true, '']),
@@ -374,6 +374,25 @@ describe('NostrRelay', () => {
       expect(client.send).toHaveBeenCalledWith(
         JSON.stringify([MessageType.NOTICE, 'invalid: unknown message type']),
       );
+    });
+  });
+
+  describe('isAuthorized', () => {
+    it('should return true if domain is not set', () => {
+      const nostrRelayWithoutDomain = new NostrRelay({} as EventRepository);
+
+      expect(nostrRelayWithoutDomain.isAuthorized(client)).toBeTruthy();
+    });
+
+    it('should return false if client is not authenticated', () => {
+      expect(nostrRelay.isAuthorized(client)).toBeFalsy();
+    });
+
+    it('should return true if client is authenticated', () => {
+      const metadata = nostrRelay['clientMetadataService'].connect(client);
+      metadata.pubkey = 'pubkey';
+
+      expect(nostrRelay.isAuthorized(client)).toBeTruthy();
     });
   });
 });
