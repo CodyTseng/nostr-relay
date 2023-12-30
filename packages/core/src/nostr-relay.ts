@@ -11,6 +11,7 @@ import {
   InternalError,
   Logger,
   MessageType,
+  NostrRelayPlugin,
   OutgoingMessage,
   SubscriptionId,
 } from '@nostr-relay/common';
@@ -18,6 +19,7 @@ import { endWith, filter, map } from 'rxjs';
 import { ClientMetadataService } from './services/client-metadata.service';
 import { EventService } from './services/event.service';
 import { LocalBroadcastService } from './services/local-broadcast.service';
+import { PluginManagerService } from './services/plugin-manager.service';
 import { SubscriptionService } from './services/subscription.service';
 import {
   LazyCache,
@@ -49,6 +51,7 @@ export class NostrRelay {
     | undefined;
   private readonly domain?: string;
   private readonly clientMetadataService: ClientMetadataService;
+  private readonly pluginManagerService: PluginManagerService;
 
   constructor(
     eventRepository: EventRepository,
@@ -60,6 +63,7 @@ export class NostrRelay {
     const broadcastService =
       options.broadcastService ?? new LocalBroadcastService();
 
+    this.pluginManagerService = new PluginManagerService();
     this.clientMetadataService = new ClientMetadataService({
       maxSubscriptionsPerClient: options.maxSubscriptionsPerClient,
     });
@@ -70,13 +74,18 @@ export class NostrRelay {
         logger: options.logger,
       },
     );
-    this.eventService = new EventService(eventRepository, broadcastService, {
-      logger: options.logger,
-      createdAtUpperLimit: options.createdAtUpperLimit,
-      createdAtLowerLimit: options.createdAtLowerLimit,
-      minPowDifficulty: options.minPowDifficulty,
-      filterResultCacheTtl: options.filterResultCacheTtl,
-    });
+    this.eventService = new EventService(
+      eventRepository,
+      broadcastService,
+      this.pluginManagerService,
+      {
+        logger: options.logger,
+        createdAtUpperLimit: options.createdAtUpperLimit,
+        createdAtLowerLimit: options.createdAtLowerLimit,
+        minPowDifficulty: options.minPowDifficulty,
+        filterResultCacheTtl: options.filterResultCacheTtl,
+      },
+    );
 
     if (options?.eventHandlingResultCacheTtl) {
       this.eventHandlingLazyCache = new LazyCache({
@@ -86,18 +95,23 @@ export class NostrRelay {
     }
   }
 
-  async handleConnection(client: Client) {
+  register(plugin: NostrRelayPlugin): NostrRelay {
+    this.pluginManagerService.register(plugin);
+    return this;
+  }
+
+  async handleConnection(client: Client): Promise<void> {
     const { id } = this.clientMetadataService.connect(client);
     if (this.domain) {
       sendMessage(client, createOutgoingAuthMessage(id));
     }
   }
 
-  async handleDisconnect(client: Client) {
+  async handleDisconnect(client: Client): Promise<void> {
     this.clientMetadataService.disconnect(client);
   }
 
-  async handleMessage(client: Client, message: IncomingMessage) {
+  async handleMessage(client: Client, message: IncomingMessage): Promise<void> {
     if (message[0] === MessageType.EVENT) {
       const [, event] = message;
       return this.handleEventMessage(client, event);
@@ -121,13 +135,33 @@ export class NostrRelay {
   }
 
   async handleEventMessage(client: Client, event: Event): Promise<void> {
-    const handleResult = this.eventHandlingLazyCache
-      ? await this.eventHandlingLazyCache.get(event.id, () =>
-          this.eventService.handleEvent(event),
-        )
-      : await this.eventService.handleEvent(event);
+    const callback = async () => {
+      const canHandle =
+        await this.pluginManagerService.callBeforeEventHandleHooks(event);
+      if (!canHandle) return;
 
-    return sendMessage(client, handleResult);
+      const handleResult = await this.eventService.handleEvent(event);
+
+      const afterPluginsHandleResult =
+        await this.pluginManagerService.callAfterEventHandleHooks(
+          event,
+          handleResult,
+        );
+
+      if (afterPluginsHandleResult) {
+        return createOutgoingOkMessage(
+          event.id,
+          afterPluginsHandleResult.success,
+          afterPluginsHandleResult.message,
+        );
+      }
+    };
+
+    const outgoingMessage = this.eventHandlingLazyCache
+      ? await this.eventHandlingLazyCache.get(event.id, callback)
+      : await callback();
+
+    return sendMessage(client, outgoingMessage);
   }
 
   async handleReqMessage(
@@ -176,7 +210,7 @@ export class NostrRelay {
     this.subscriptionService.unsubscribe(client, subscriptionId);
   }
 
-  handleAuthMessage(client: Client, signedEvent: Event) {
+  handleAuthMessage(client: Client, signedEvent: Event): void {
     if (!this.domain) {
       return sendMessage(client, createOutgoingOkMessage(signedEvent.id, true));
     }

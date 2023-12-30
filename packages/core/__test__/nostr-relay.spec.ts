@@ -1,4 +1,3 @@
-import { randomUUID } from 'crypto';
 import { from } from 'rxjs';
 import {
   Client,
@@ -8,6 +7,7 @@ import {
   EventUtils,
   Filter,
   MessageType,
+  NostrRelayPlugin,
   OutgoingOkMessage,
   SubscriptionId,
 } from '../../common';
@@ -31,6 +31,18 @@ describe('NostrRelay', () => {
   describe('constructor', () => {
     it('should create instance', () => {
       expect(nostrRelay).toBeDefined();
+    });
+  });
+
+  describe('register', () => {
+    it('should register plugin', () => {
+      const mockPluginManagerServiceRegister = jest
+        .spyOn(nostrRelay['pluginManagerService'], 'register')
+        .mockImplementation();
+
+      nostrRelay.register({} as NostrRelayPlugin);
+
+      expect(mockPluginManagerServiceRegister).toHaveBeenCalledWith({});
     });
   });
 
@@ -63,21 +75,32 @@ describe('NostrRelay', () => {
   describe('event', () => {
     it('should handle event successfully', async () => {
       const event = { id: 'eventId' } as Event;
-      const handleResult: OutgoingOkMessage = [
+      const handleResult = { success: true };
+      const outgoingMessage: OutgoingOkMessage = [
         MessageType.OK,
         event.id,
         true,
         '',
       ];
 
+      const mockPlugin = {
+        beforeEventHandle: jest.fn().mockReturnValue(true),
+        afterEventHandle: jest.fn().mockReturnValue(handleResult),
+      };
+      nostrRelay.register(mockPlugin);
       const mockHandleEvent = jest
         .spyOn(nostrRelay['eventService'], 'handleEvent')
         .mockResolvedValue(handleResult);
 
       await nostrRelay.handleEventMessage(client, event);
 
+      expect(mockPlugin.beforeEventHandle).toHaveBeenCalledWith(event);
+      expect(mockPlugin.afterEventHandle).toHaveBeenCalledWith(
+        event,
+        handleResult,
+      );
       expect(mockHandleEvent).toHaveBeenCalledWith(event);
-      expect(client.send).toHaveBeenCalledWith(JSON.stringify(handleResult));
+      expect(client.send).toHaveBeenCalledWith(JSON.stringify(outgoingMessage));
     });
 
     it('should cache handle result', async () => {
@@ -86,17 +109,17 @@ describe('NostrRelay', () => {
         eventHandlingResultCacheTtl: 1000,
       });
       const event = { id: 'eventId' } as Event;
-      const handleResult: OutgoingOkMessage = [
+      const outgoingMessage: OutgoingOkMessage = [
         MessageType.OK,
         event.id,
         true,
         '',
       ];
-      const handleResultString = JSON.stringify(handleResult);
+      const outgoingMessageStr = JSON.stringify(outgoingMessage);
 
       const mockHandleEvent = jest
         .spyOn(nostrRelayWithCache['eventService'], 'handleEvent')
-        .mockResolvedValue(handleResult);
+        .mockResolvedValue({ success: true });
 
       await Promise.all([
         nostrRelayWithCache.handleEventMessage(client, event),
@@ -105,8 +128,36 @@ describe('NostrRelay', () => {
 
       expect(mockHandleEvent).toHaveBeenCalledTimes(1);
       expect(client.send).toHaveBeenCalledTimes(2);
-      expect(client.send).toHaveBeenNthCalledWith(1, handleResultString);
-      expect(client.send).toHaveBeenNthCalledWith(2, handleResultString);
+      expect(client.send).toHaveBeenNthCalledWith(1, outgoingMessageStr);
+      expect(client.send).toHaveBeenNthCalledWith(2, outgoingMessageStr);
+    });
+
+    it('should not handle event due to plugin prevention', async () => {
+      jest
+        .spyOn(nostrRelay['pluginManagerService'], 'callBeforeEventHandleHooks')
+        .mockResolvedValue(false);
+      const mockHandleEvent = jest
+        .spyOn(nostrRelay['eventService'], 'handleEvent')
+        .mockResolvedValue({ success: true });
+
+      await nostrRelay.handleEventMessage(client, { id: 'eventId' } as Event);
+
+      expect(mockHandleEvent).not.toHaveBeenCalled();
+    });
+
+    it('should not send outgoing message due to plugin prevention', async () => {
+      const event = { id: 'eventId' } as Event;
+
+      jest
+        .spyOn(nostrRelay['pluginManagerService'], 'callAfterEventHandleHooks')
+        .mockImplementation();
+      jest
+        .spyOn(nostrRelay['eventService'], 'handleEvent')
+        .mockResolvedValue({ success: true });
+
+      await nostrRelay.handleEventMessage(client, event);
+
+      expect(client.send).not.toHaveBeenCalled();
     });
   });
 

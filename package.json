@@ -9,7 +9,7 @@
     "build": "lerna run build",
     "clean": "lerna run clean",
     "publish": "npm run clean && npm run build && lerna publish",
-    "lint:packages": "eslint 'packages/**/**.ts' --ignore-pattern 'packages/**/*.spec.ts'",
+    "lint": "eslint 'packages/**/**.ts' --ignore-pattern 'packages/**/*.spec.ts'",
     "format": "prettier \"**/*.ts\" \"packages/**/*.json\" --ignore-path ./.prettierignore --write",
     "test": "jest"
   },

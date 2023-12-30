@@ -9,3 +9,8 @@ export interface Event {
   content: string;
   sig: Siganature;
 }
+
+export type EventHandleResult = {
+  success: boolean;
+  message?: string;
+} | void;

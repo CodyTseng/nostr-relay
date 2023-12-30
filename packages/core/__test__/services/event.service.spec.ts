@@ -1,4 +1,4 @@
-import { EventService } from '../../src/services/event.service';
+import { from } from 'rxjs';
 import {
   BroadcastService,
   Event,
@@ -6,15 +6,16 @@ import {
   EventRepository,
   EventUtils,
   Filter,
-  MessageType,
   observableToArray,
 } from '../../../common';
-import { from } from 'rxjs';
+import { EventService } from '../../src/services/event.service';
+import { PluginManagerService } from '../../src/services/plugin-manager.service';
 
 describe('eventService', () => {
   let eventService: EventService;
   let eventRepository: EventRepository;
   let broadcastService: BroadcastService;
+  let pluginManagerService: PluginManagerService;
 
   beforeEach(() => {
     eventRepository = {
@@ -27,12 +28,18 @@ describe('eventService', () => {
       broadcast: jest.fn(),
       setListener: jest.fn(),
     };
-    eventService = new EventService(eventRepository, broadcastService, {
-      logger: {
-        error: jest.fn(),
+    pluginManagerService = new PluginManagerService();
+    eventService = new EventService(
+      eventRepository,
+      broadcastService,
+      pluginManagerService,
+      {
+        logger: {
+          error: jest.fn(),
+        },
+        filterResultCacheTtl: 0,
       },
-      filterResultCacheTtl: 0,
-    });
+    );
   });
 
   describe('find', () => {
@@ -80,6 +87,7 @@ describe('eventService', () => {
       const eventServiceWithCache = new EventService(
         eventRepository,
         broadcastService,
+        pluginManagerService,
       );
       const filters = [{}, {}] as Filter[];
       const events = [{ id: 'a' }, { id: 'b' }] as Event[];
@@ -110,12 +118,10 @@ describe('eventService', () => {
 
       jest.spyOn(eventRepository, 'findOne').mockResolvedValue(event);
 
-      expect(await eventService.handleEvent(event)).toEqual([
-        MessageType.OK,
-        event.id,
-        true,
-        'duplicate: the event already exists',
-      ]);
+      expect(await eventService.handleEvent(event)).toEqual({
+        success: true,
+        message: 'duplicate: the event already exists',
+      });
     });
 
     it('should return validation error message if event is invalid', async () => {
@@ -125,20 +131,46 @@ describe('eventService', () => {
         .spyOn(EventUtils, 'validate')
         .mockReturnValue('error: invalid event');
 
-      expect(await eventService.handleEvent(event)).toEqual([
-        MessageType.OK,
-        event.id,
-        false,
-        'error: invalid event',
-      ]);
+      expect(await eventService.handleEvent(event)).toEqual({
+        success: false,
+        message: 'error: invalid event',
+      });
     });
 
     it('should handle ephemeral event successfully', async () => {
+      const mockBeforeEventBroadcast = jest
+        .spyOn(
+          eventService['pluginManagerService'],
+          'callBeforeEventBroadcastHooks',
+        )
+        .mockResolvedValue(true);
+      const mockAfterEventBroadcast = jest
+        .spyOn(
+          eventService['pluginManagerService'],
+          'callAfterEventBroadcastHooks',
+        )
+        .mockImplementation();
       jest.spyOn(EventUtils, 'validate').mockReturnValue(undefined);
 
       const event = { id: 'a', kind: EventKind.EPHEMERAL_FIRST } as Event;
       expect(await eventService.handleEvent(event)).toBeUndefined();
+      expect(mockBeforeEventBroadcast).toHaveBeenCalledWith(event);
+      expect(mockAfterEventBroadcast).toHaveBeenCalledWith(event);
       expect(broadcastService.broadcast).toHaveBeenCalledWith(event);
+    });
+
+    it('should not broadcast due to plugin prevention', async () => {
+      jest
+        .spyOn(
+          eventService['pluginManagerService'],
+          'callBeforeEventBroadcastHooks',
+        )
+        .mockResolvedValue(false);
+      jest.spyOn(EventUtils, 'validate').mockReturnValue(undefined);
+
+      const event = { id: 'a', kind: EventKind.EPHEMERAL_FIRST } as Event;
+      expect(await eventService.handleEvent(event)).toBeUndefined();
+      expect(broadcastService.broadcast).not.toHaveBeenCalled();
     });
 
     it('should handle regular event successfully', async () => {
@@ -150,12 +182,9 @@ describe('eventService', () => {
         .spyOn(eventRepository, 'upsert')
         .mockResolvedValue({ isDuplicate: false });
 
-      expect(await eventService.handleEvent(event)).toEqual([
-        MessageType.OK,
-        event.id,
-        true,
-        '',
-      ]);
+      expect(await eventService.handleEvent(event)).toEqual({
+        success: true,
+      });
       expect(broadcastService.broadcast).toHaveBeenCalledWith(event);
     });
 
@@ -168,12 +197,10 @@ describe('eventService', () => {
         .spyOn(eventRepository, 'upsert')
         .mockResolvedValue({ isDuplicate: true });
 
-      expect(await eventService.handleEvent(event)).toEqual([
-        MessageType.OK,
-        event.id,
-        true,
-        'duplicate: the event already exists',
-      ]);
+      expect(await eventService.handleEvent(event)).toEqual({
+        success: true,
+        message: 'duplicate: the event already exists',
+      });
       expect(broadcastService.broadcast).not.toHaveBeenCalled();
     });
 
@@ -186,12 +213,10 @@ describe('eventService', () => {
         throw new Error('test');
       });
 
-      expect(await eventService.handleEvent(event)).toEqual([
-        MessageType.OK,
-        event.id,
-        false,
-        'error: test',
-      ]);
+      expect(await eventService.handleEvent(event)).toEqual({
+        success: false,
+        message: 'error: test',
+      });
       expect(broadcastService.broadcast).not.toHaveBeenCalled();
       expect(eventService['logger'].error).toHaveBeenCalled();
     });
@@ -203,12 +228,10 @@ describe('eventService', () => {
       jest.spyOn(EventUtils, 'validate').mockReturnValue(undefined);
       jest.spyOn(eventRepository, 'upsert').mockRejectedValue('unknown');
 
-      expect(await eventService.handleEvent(event)).toEqual([
-        MessageType.OK,
-        event.id,
-        false,
-        'error: unknown',
-      ]);
+      expect(await eventService.handleEvent(event)).toEqual({
+        success: false,
+        message: 'error: unknown',
+      });
       expect(broadcastService.broadcast).not.toHaveBeenCalled();
       expect(eventService['logger'].error).toHaveBeenCalled();
     });

@@ -7,11 +7,12 @@ import {
   EventType,
   EventUtils,
   Filter,
+  EventHandleResult,
   Logger,
-  OutgoingMessage,
 } from '@nostr-relay/common';
 import { EMPTY, Observable, distinct, from, merge, mergeMap } from 'rxjs';
-import { LazyCache, createOutgoingOkMessage } from '../utils';
+import { LazyCache } from '../utils';
+import { PluginManagerService } from './plugin-manager.service';
 
 type EventServiceOptions = {
   logger?: Logger;
@@ -24,6 +25,7 @@ type EventServiceOptions = {
 export class EventService {
   private readonly eventRepository: EventRepository;
   private readonly broadcastService: BroadcastService;
+  private readonly pluginManagerService: PluginManagerService;
   private readonly logger: Logger;
   private readonly findLazyCache?:
     | LazyCache<string, Promise<Observable<Event>>>
@@ -35,10 +37,12 @@ export class EventService {
   constructor(
     eventRepository: EventRepository,
     broadcastService: BroadcastService,
+    pluginManagerService: PluginManagerService,
     options: EventServiceOptions = {},
   ) {
     this.eventRepository = eventRepository;
     this.broadcastService = broadcastService;
+    this.pluginManagerService = pluginManagerService;
     this.logger = options.logger ?? new ConsoleLoggerService();
     this.createdAtUpperLimit = options.createdAtUpperLimit;
     this.createdAtLowerLimit = options.createdAtLowerLimit;
@@ -60,16 +64,15 @@ export class EventService {
     );
   }
 
-  async handleEvent(event: Event): Promise<void | OutgoingMessage> {
+  async handleEvent(event: Event): Promise<EventHandleResult> {
     if (event.kind === EventKind.AUTHENTICATION) return;
 
     const exists = await this.checkEventExists(event);
     if (exists) {
-      return createOutgoingOkMessage(
-        event.id,
-        true,
-        'duplicate: the event already exists',
-      );
+      return {
+        success: true,
+        message: 'duplicate: the event already exists',
+      };
     }
 
     const validateErrorMsg = EventUtils.validate(event, {
@@ -78,7 +81,10 @@ export class EventService {
       minPowDifficulty: this.minPowDifficulty,
     });
     if (validateErrorMsg) {
-      return createOutgoingOkMessage(event.id, false, validateErrorMsg);
+      return {
+        success: false,
+        message: validateErrorMsg,
+      };
     }
 
     try {
@@ -90,18 +96,20 @@ export class EventService {
     } catch (error) {
       this.logger.error(`${EventService.name}.handleEvent`, error);
       if (error instanceof Error) {
-        return createOutgoingOkMessage(
-          event.id,
-          false,
-          'error: ' + error.message,
-        );
+        return {
+          success: false,
+          message: 'error: ' + error.message,
+        };
       }
-      return createOutgoingOkMessage(event.id, false, 'error: unknown');
+      return {
+        success: false,
+        message: 'error: unknown',
+      };
     }
   }
 
   private async findByFilter(filter: Filter): Promise<Observable<Event>> {
-    const callback = async () => {
+    const callback = async (): Promise<Observable<Event>> => {
       if (
         filter.search !== undefined &&
         !this.eventRepository.isSearchSupported
@@ -121,20 +129,19 @@ export class EventService {
   }
 
   private async handleEphemeralEvent(event: Event): Promise<void> {
-    await this.broadcastService.broadcast(event);
+    await this.broadcast(event);
   }
 
-  private async handleRegularEvent(event: Event): Promise<OutgoingMessage> {
+  private async handleRegularEvent(event: Event): Promise<EventHandleResult> {
     const { isDuplicate } = await this.eventRepository.upsert(event);
 
     if (!isDuplicate) {
-      await this.broadcastService.broadcast(event);
+      await this.broadcast(event);
     }
-    return createOutgoingOkMessage(
-      event.id,
-      true,
-      isDuplicate ? 'duplicate: the event already exists' : '',
-    );
+    return {
+      success: true,
+      message: isDuplicate ? 'duplicate: the event already exists' : undefined,
+    };
   }
 
   private async checkEventExists(event: Event): Promise<boolean> {
@@ -142,5 +149,15 @@ export class EventService {
 
     const exists = await this.eventRepository.findOne({ ids: [event.id] });
     return !!exists;
+  }
+
+  private async broadcast(event: Event): Promise<void> {
+    const canBroadcast =
+      await this.pluginManagerService.callBeforeEventBroadcastHooks(event);
+    if (!canBroadcast) return;
+
+    await this.broadcastService.broadcast(event);
+
+    await this.pluginManagerService.callAfterEventBroadcastHooks(event);
   }
 }
