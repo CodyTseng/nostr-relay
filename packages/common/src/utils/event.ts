@@ -95,7 +95,7 @@ export class EventUtils {
     }
   }
 
-  static isIdValid(event: Event) {
+  static isIdValid(event: Event): boolean {
     return (
       sha256([
         0,
@@ -108,11 +108,11 @@ export class EventUtils {
     );
   }
 
-  static isSigValid(event: Event) {
+  static isSigValid(event: Event): boolean {
     return schnorrVerify(event.sig, event.id, event.pubkey);
   }
 
-  static isDelegationEventValid(event: Event) {
+  static isDelegationEventValid(event: Event): boolean {
     const delegationTag = EventUtils.extractDelegationTag(event);
     if (!delegationTag) return true;
 
@@ -211,7 +211,7 @@ export class EventUtils {
     return event.tags.find(([tagName]) => tagName === TagName.DELEGATION);
   }
 
-  static extractDTagValue(event: Event) {
+  static extractDTagValue(event: Event): string | null {
     const type = EventUtils.getType(event);
     if (type === EventType.REPLACEABLE) return '';
     if (type !== EventType.PARAMETERIZED_REPLACEABLE) return null;
@@ -264,7 +264,7 @@ export class EventUtils {
     return true;
   }
 
-  static checkPermission(event: Event, pubkey?: string) {
+  static checkPermission(event: Event, pubkey?: string): boolean {
     if (event.kind !== EventKind.ENCRYPTED_DIRECT_MESSAGE) {
       return true;
     }

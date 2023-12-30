@@ -135,7 +135,7 @@ export class NostrRelay {
   }
 
   async handleEventMessage(client: Client, event: Event): Promise<void> {
-    const callback = async () => {
+    const callback = async (): Promise<OutgoingMessage | undefined> => {
       const canHandle =
         await this.pluginManagerService.callBeforeEventHandleHooks(event);
       if (!canHandle) return;

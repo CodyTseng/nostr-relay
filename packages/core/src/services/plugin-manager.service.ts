@@ -14,7 +14,7 @@ export class PluginManagerService {
   private readonly beforeEventBroadcastPlugins: BeforeEventBroadcast[] = [];
   private readonly afterEventBroadcastPlugins: AfterEventBroadcast[] = [];
 
-  register(plugin: NostrRelayPlugin) {
+  register(plugin: NostrRelayPlugin): void {
     if (this.hasBeforeEventHandleHook(plugin)) {
       this.beforeEventHandlePlugins.push(plugin);
     }

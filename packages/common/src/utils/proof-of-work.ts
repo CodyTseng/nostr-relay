@@ -1,4 +1,4 @@
-function zeroBits(b: number) {
+function zeroBits(b: number): number {
   let n = 0;
 
   if (b == 0) {
@@ -12,7 +12,7 @@ function zeroBits(b: number) {
   return 7 - n;
 }
 
-export function countPowDifficulty(hexStr: string) {
+export function countPowDifficulty(hexStr: string): number {
   const buf = Buffer.from(hexStr, 'hex');
   let bits = 0,
     total = 0;

@@ -16,7 +16,7 @@ function createGenericTagFilterValuesSchema({
 }: Pick<
   RequiredValidatorOptions,
   'maxFilterGenericTagsLength' | 'maxLengthPerTagItem'
->) {
+>): z.ZodType<string[]> {
   return z
     .array(
       z

@@ -30,7 +30,10 @@ export const EventSigSchema = HexStringSchema.length(128, {
 export function createEventTagSchema({
   maxItemsPerTag,
   maxLengthPerTagItem,
-}: Pick<RequiredValidatorOptions, 'maxItemsPerTag' | 'maxLengthPerTagItem'>) {
+}: Pick<
+  RequiredValidatorOptions,
+  'maxItemsPerTag' | 'maxLengthPerTagItem'
+>): z.ZodType<string[]> {
   return z
     .array(
       z
@@ -46,7 +49,7 @@ export function createEventTagSchema({
 
 export function createEventContentSchema({
   maxContentLength,
-}: Pick<RequiredValidatorOptions, 'maxContentLength'>) {
+}: Pick<RequiredValidatorOptions, 'maxContentLength'>): z.ZodType<string> {
   return z
     .string({ invalid_type_error: 'must be a string' })
     .max(maxContentLength, {
@@ -56,7 +59,10 @@ export function createEventContentSchema({
 
 export function createSubscriptionIdSchema({
   maxSubscriptionIdLength,
-}: Pick<RequiredValidatorOptions, 'maxSubscriptionIdLength'>) {
+}: Pick<
+  RequiredValidatorOptions,
+  'maxSubscriptionIdLength'
+>): z.ZodType<string> {
   return z
     .string({ invalid_type_error: 'must be a string' })
     .min(1, { message: 'must be at least 1 character' })
@@ -67,7 +73,10 @@ export function createSubscriptionIdSchema({
 
 export function createSearchSchema({
   maxFilterSearchStringLength,
-}: Pick<RequiredValidatorOptions, 'maxFilterSearchStringLength'>) {
+}: Pick<
+  RequiredValidatorOptions,
+  'maxFilterSearchStringLength'
+>): z.ZodType<string> {
   return z
     .string({ invalid_type_error: 'must be a string' })
     .max(maxFilterSearchStringLength, {

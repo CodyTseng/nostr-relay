@@ -30,7 +30,7 @@ export class SubscriptionService {
     broadcastService.setListener(event => this.eventListener(event));
   }
 
-  subscribe(client: Client, subscriptionId: string, filters: Filter[]) {
+  subscribe(client: Client, subscriptionId: string, filters: Filter[]): void {
     // Filter with search is not currently supported.
     const nonSearchFilters = filters.filter(
       filter => filter.search === undefined,
@@ -42,7 +42,7 @@ export class SubscriptionService {
     subscriptions.set(subscriptionId, nonSearchFilters);
   }
 
-  unsubscribe(client: Client, subscriptionId: string) {
+  unsubscribe(client: Client, subscriptionId: string): boolean {
     const subscriptions = this.clientMetadataService.getSubscriptions(client);
     if (!subscriptions) {
       return false;
@@ -50,7 +50,7 @@ export class SubscriptionService {
     return subscriptions.delete(subscriptionId);
   }
 
-  eventListener(event: Event) {
+  eventListener(event: Event): void {
     try {
       this.clientMetadataService.forEach(({ subscriptions }, client) => {
         if (client.readyState !== ClientReadyState.OPEN) {

@@ -15,7 +15,7 @@ module.exports = {
         },
         rules: {
           '@typescript-eslint/interface-name-prefix': 'off',
-          '@typescript-eslint/explicit-function-return-type': 'off',
+          '@typescript-eslint/explicit-function-return-type': 'warn',
           '@typescript-eslint/no-explicit-any': 'off',
           '@typescript-eslint/explicit-module-boundary-types': 'off',
           '@typescript-eslint/ban-types': 'off',
@@ -26,7 +26,7 @@ module.exports = {
         files: ['**/*.spec.ts', 'integration/**/*.ts'],
         parser: '@typescript-eslint/parser',
         parserOptions: {
-          project: 'tsconfig.spec.json',
+          project: 'tsconfig.json',
           sourceType: 'module',
         },
         rules: {
