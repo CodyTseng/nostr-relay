@@ -1,6 +1,6 @@
 {
-  "name": "@nostr-relay/common",
-  "version": "0.0.6",
+  "name": "@nostr-relay/event-repository-pg",
+  "version": "0.0.5",
   "description": "Easily build your customized Nostr Relay.",
   "author": "codytseng",
   "homepage": "https://github.com/CodyTseng/nostr-relay#readme",
@@ -28,11 +28,10 @@
     "url": "https://github.com/CodyTseng/nostr-relay/issues"
   },
   "dependencies": {
-    "@noble/curves": "^1.2.0",
-    "lodash": "^4.17.21",
-    "rxjs": "^7.8.1"
+    "@nostr-relay/common": "^0.0.5",
+    "pg": "^8.11.3"
   },
   "devDependencies": {
-    "@types/lodash": "^4.14.202"
+    "@types/pg": "^8.10.9"
   }
 }
