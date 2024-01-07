@@ -1,0 +1,295 @@
+import { Database } from 'better-sqlite3';
+import { EventKind, getTimestampInSeconds } from '../../common';
+import { createEvent } from '../../common/__test__/utils/event.spec';
+import { EventRepositorySqlite } from '../src/event-repository-sqlite';
+
+describe('EventRepositorySqlite', () => {
+  let eventRepository: EventRepositorySqlite;
+  let database: Database;
+
+  beforeEach(async () => {
+    eventRepository = new EventRepositorySqlite();
+    await eventRepository.init();
+    database = eventRepository.getDatabase();
+  });
+
+  afterEach(async () => {
+    await eventRepository.close();
+  });
+
+  describe('upsert', () => {
+    it('should insert a new event', async () => {
+      const event = createEvent({
+        tags: [
+          ['a', 'test'],
+          ['b', 'test'],
+        ],
+      });
+      const result = await eventRepository.upsert(event);
+      expect(result).toEqual({ isDuplicate: false });
+
+      const dbEvent = await eventRepository.findOne({ ids: [event.id] });
+      expect(dbEvent).toEqual(event);
+      const genericTags = database
+        .prepare(`SELECT * FROM generic_tags WHERE event_id = ?`)
+        .all([event.id]) as { tag: string }[];
+      expect(genericTags.map(e => e.tag)).toEqual(['a:test', 'b:test']);
+    });
+
+    it('should update an existing event', async () => {
+      const eventA = createEvent({
+        kind: EventKind.SET_METADATA,
+        content: 'a',
+      });
+      await eventRepository.upsert(eventA);
+
+      const eventB = createEvent({
+        kind: EventKind.SET_METADATA,
+        content: 'b',
+        created_at: eventA.created_at + 1,
+      });
+      const result = await eventRepository.upsert(eventB);
+      expect(result).toEqual({ isDuplicate: false });
+
+      const dbEventA = await eventRepository.findOne({ ids: [eventA.id] });
+      expect(dbEventA).toBeNull();
+      const dbEventB = await eventRepository.findOne({ ids: [eventB.id] });
+      expect(dbEventB).toEqual(eventB);
+    });
+
+    it('should not insert an event with same id', async () => {
+      const event = createEvent();
+      await eventRepository.upsert(event);
+      const result = await eventRepository.upsert(event);
+      expect(result).toEqual({ isDuplicate: true });
+
+      const dbEvent = await eventRepository.findOne({ ids: [event.id] });
+      expect(dbEvent).toEqual(event);
+    });
+
+    it('should not insert an event with earlier createdAt', async () => {
+      const eventA = createEvent({
+        kind: EventKind.SET_METADATA,
+        content: 'a',
+      });
+      await eventRepository.upsert(eventA);
+
+      const eventB = createEvent({
+        kind: EventKind.SET_METADATA,
+        content: 'b',
+        created_at: eventA.created_at - 1,
+      });
+      const result = await eventRepository.upsert(eventB);
+      expect(result).toEqual({ isDuplicate: true });
+
+      const dbEventA = await eventRepository.findOne({ ids: [eventA.id] });
+      expect(dbEventA).toEqual(eventA);
+      const dbEventB = await eventRepository.findOne({ ids: [eventB.id] });
+      expect(dbEventB).toBeNull();
+    });
+
+    it('should insert an event with same createdAt and smaller id', async () => {
+      const now = getTimestampInSeconds();
+      const [A, B, C] = [
+        createEvent({
+          kind: EventKind.SET_METADATA,
+          content: Math.random().toString(),
+          created_at: now,
+        }),
+        createEvent({
+          kind: EventKind.SET_METADATA,
+          content: Math.random().toString(),
+          created_at: now,
+        }),
+        createEvent({
+          kind: EventKind.SET_METADATA,
+          content: Math.random().toString(),
+          created_at: now,
+        }),
+      ].sort((a, b) => (a.id < b.id ? -1 : 1));
+
+      await eventRepository.upsert(B);
+      const upsertAResult = await eventRepository.upsert(A);
+      expect(upsertAResult).toEqual({ isDuplicate: false });
+
+      const upsertCResult = await eventRepository.upsert(C);
+      expect(upsertCResult).toEqual({ isDuplicate: true });
+
+      const dbEventA = await eventRepository.findOne({ ids: [A.id] });
+      expect(dbEventA).toEqual(A);
+    });
+
+    it('should throw an error', async () => {
+      jest
+        .spyOn(eventRepository['db'], 'transaction')
+        .mockImplementation(() => {
+          throw new Error('test');
+        });
+
+      await expect(eventRepository.upsert(createEvent())).rejects.toThrow(
+        'test',
+      );
+    });
+  });
+
+  describe('find', () => {
+    const now = getTimestampInSeconds();
+    const events = [
+      createEvent({
+        kind: EventKind.LONG_FORM_CONTENT,
+        content: 'hello nostr',
+        tags: [
+          ['d', 'test'],
+          ['t', 'test'],
+          ['e', 'test'],
+        ],
+        created_at: now + 1000,
+      }),
+      createEvent({
+        kind: EventKind.TEXT_NOTE,
+        content: 'hello world',
+        tags: [['t', 'test']],
+        created_at: now,
+      }),
+      createEvent({
+        kind: EventKind.SET_METADATA,
+        content: JSON.stringify({ name: 'cody' }),
+        created_at: now - 1000,
+      }),
+    ];
+    const [LONG_FORM_CONTENT_EVENT, TEXT_NOTE_EVENT, SET_METADATA_EVENT] =
+      events;
+
+    beforeEach(async () => {
+      await Promise.all(events.map(event => eventRepository.upsert(event)));
+    });
+
+    it('should filter by kind', async () => {
+      const result = await eventRepository.find({
+        kinds: [EventKind.TEXT_NOTE],
+      });
+      expect(result).toEqual([TEXT_NOTE_EVENT]);
+    });
+
+    it('should filter by author', async () => {
+      const result = await eventRepository.find({
+        authors: [TEXT_NOTE_EVENT.pubkey],
+      });
+      expect(result).toEqual(events);
+
+      const result2 = await eventRepository.find({
+        authors: ['test'],
+      });
+      expect(result2).toEqual([]);
+    });
+
+    it('should filter by since', async () => {
+      const result = await eventRepository.find({
+        since: now,
+      });
+      expect(result).toEqual([LONG_FORM_CONTENT_EVENT, TEXT_NOTE_EVENT]);
+    });
+
+    it('should filter by until', async () => {
+      const result = await eventRepository.find({
+        until: now,
+      });
+      expect(result).toEqual([TEXT_NOTE_EVENT, SET_METADATA_EVENT]);
+    });
+
+    it('should filter by since and until', async () => {
+      const result = await eventRepository.find({
+        since: now + 1,
+        until: now + 1000,
+      });
+      expect(result).toEqual([LONG_FORM_CONTENT_EVENT]);
+    });
+
+    it('should filter by ids', async () => {
+      const result = await eventRepository.find({
+        ids: [TEXT_NOTE_EVENT.id],
+      });
+      expect(result).toEqual([TEXT_NOTE_EVENT]);
+    });
+
+    it('should filter by dTagValue', async () => {
+      const result = await eventRepository.find({
+        '#d': ['test'],
+      });
+      expect(result).toEqual([LONG_FORM_CONTENT_EVENT]);
+    });
+
+    it('should return empty array directly if limit is 0', async () => {
+      const result = await eventRepository.find({
+        limit: 0,
+      });
+      expect(result).toEqual([]);
+    });
+
+    describe('filter by generic tags', () => {
+      it('should filter by tags', async () => {
+        const result = await eventRepository.find({
+          '#t': ['test'],
+        });
+        expect(result).toEqual([LONG_FORM_CONTENT_EVENT, TEXT_NOTE_EVENT]);
+      });
+
+      it('should filter by multiple tags', async () => {
+        const result = await eventRepository.find({
+          '#t': ['test'],
+          '#e': ['test'],
+        });
+        expect(result).toEqual([LONG_FORM_CONTENT_EVENT]);
+      });
+
+      it('should filter by tags and since', async () => {
+        const result = await eventRepository.find({
+          '#t': ['test'],
+          since: now + 1,
+        });
+        expect(result).toEqual([LONG_FORM_CONTENT_EVENT]);
+      });
+
+      it('should filter by tags and until', async () => {
+        const result = await eventRepository.find({
+          '#t': ['test'],
+          until: now + 1,
+        });
+        expect(result).toEqual([TEXT_NOTE_EVENT]);
+      });
+
+      it('should filter by tags and since and until', async () => {
+        const result = await eventRepository.find({
+          '#t': ['test'],
+          since: now + 1,
+          until: now + 1000,
+        });
+        expect(result).toEqual([LONG_FORM_CONTENT_EVENT]);
+      });
+
+      it('should filter by tags and authors', async () => {
+        const result = await eventRepository.find({
+          '#t': ['test'],
+          authors: [TEXT_NOTE_EVENT.pubkey],
+        });
+        expect(result).toEqual([LONG_FORM_CONTENT_EVENT, TEXT_NOTE_EVENT]);
+      });
+
+      it('should filter by tags and kinds', async () => {
+        const result = await eventRepository.find({
+          '#t': ['test'],
+          kinds: [EventKind.TEXT_NOTE],
+        });
+        expect(result).toEqual([TEXT_NOTE_EVENT]);
+      });
+
+      it('should filter by tags and ids', async () => {
+        const result = await eventRepository.find({
+          '#t': ['test'],
+          ids: [TEXT_NOTE_EVENT.id],
+        });
+        expect(result).toEqual([TEXT_NOTE_EVENT]);
+      });
+    });
+  });
+});

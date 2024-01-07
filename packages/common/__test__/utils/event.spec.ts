@@ -516,7 +516,7 @@ function createSignedEvent(
   });
 }
 
-function createEvent(
+export function createEvent(
   params: {
     kind?: number;
     created_at?: number;
