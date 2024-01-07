@@ -1,0 +1,35 @@
+{
+  "name": "@nostr-relay/event-repository-sqlite",
+  "version": "0.0.6",
+  "description": "Easily build your customized Nostr Relay.",
+  "author": "codytseng",
+  "homepage": "https://github.com/CodyTseng/nostr-relay#readme",
+  "license": "MIT",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "directories": {
+    "dist": "dist"
+  },
+  "files": [
+    "dist/",
+    "migrations/"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/CodyTseng/nostr-relay.git"
+  },
+  "scripts": {
+    "build": "tsc -b -v",
+    "clean": "tsc -b --clean"
+  },
+  "bugs": {
+    "url": "https://github.com/CodyTseng/nostr-relay/issues"
+  },
+  "dependencies": {
+    "@nostr-relay/common": "^0.0.6",
+    "better-sqlite3": "^9.2.2"
+  },
+  "devDependencies": {
+    "@types/better-sqlite3": "^7.6.8"
+  }
+}
