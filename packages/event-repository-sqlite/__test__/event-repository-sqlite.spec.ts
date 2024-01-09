@@ -9,7 +9,6 @@ describe('EventRepositorySqlite', () => {
 
   beforeEach(async () => {
     eventRepository = new EventRepositorySqlite();
-    await eventRepository.init();
     database = eventRepository.getDatabase();
   });
 
@@ -19,27 +18,38 @@ describe('EventRepositorySqlite', () => {
 
   describe('upsert', () => {
     it('should insert a new event', async () => {
-      const event = createEvent({
+      const eventA = createEvent({
         tags: [
           ['a', 'test'],
           ['b', 'test'],
         ],
       });
-      const result = await eventRepository.upsert(event);
-      expect(result).toEqual({ isDuplicate: false });
+      const resultA = await eventRepository.upsert(eventA);
+      expect(resultA).toEqual({ isDuplicate: false });
 
-      const dbEvent = await eventRepository.findOne({ ids: [event.id] });
-      expect(dbEvent).toEqual(event);
+      const eventB = createEvent({});
+      const resultB = await eventRepository.upsert(eventB);
+      expect(resultB).toEqual({ isDuplicate: false });
+
+      const dbEventA = await eventRepository.findOne({ ids: [eventA.id] });
+      expect(dbEventA).toEqual(eventA);
       const genericTags = database
         .prepare(`SELECT * FROM generic_tags WHERE event_id = ?`)
-        .all([event.id]) as { tag: string }[];
+        .all([eventA.id]) as { tag: string }[];
       expect(genericTags.map(e => e.tag)).toEqual(['a:test', 'b:test']);
+
+      const dbEventB = await eventRepository.findOne({ ids: [eventB.id] });
+      expect(dbEventB).toEqual(eventB);
     });
 
     it('should update an existing event', async () => {
       const eventA = createEvent({
         kind: EventKind.SET_METADATA,
         content: 'a',
+        tags: [
+          ['a', 'test'],
+          ['b', 'test'],
+        ],
       });
       await eventRepository.upsert(eventA);
 
@@ -53,6 +63,10 @@ describe('EventRepositorySqlite', () => {
 
       const dbEventA = await eventRepository.findOne({ ids: [eventA.id] });
       expect(dbEventA).toBeNull();
+      const genericTags = database
+        .prepare(`SELECT * FROM generic_tags WHERE event_id = ?`)
+        .all([eventA.id]) as { tag: string }[];
+      expect(genericTags.map(e => e.tag)).toEqual([]);
       const dbEventB = await eventRepository.findOne({ ids: [eventB.id] });
       expect(dbEventB).toEqual(eventB);
     });

@@ -1,31 +1,30 @@
 import {
   Event,
-  EventKind,
   EventRepository,
   EventRepositoryUpsertResult,
-  EventType,
   EventUtils,
   Filter,
 } from '@nostr-relay/common';
-import * as path from 'path';
 import * as BetterSqlite3 from 'better-sqlite3';
-import { readFile } from 'fs/promises';
+import { readFileSync } from 'fs';
+import * as path from 'path';
 
 export class EventRepositorySqlite extends EventRepository {
   private db: BetterSqlite3.Database;
 
-  async init(filename = ':memory:') {
+  constructor(filename = ':memory:') {
+    super();
     this.db = new BetterSqlite3(filename);
     this.db.pragma('journal_mode = WAL');
 
-    const migration = await readFile(
+    const migration = readFileSync(
       path.join(__dirname, '../migrations/001-initial-up.sql'),
       'utf8',
     );
     this.db.exec(migration);
   }
 
-  async close() {
+  close(): void {
     this.db.close();
   }
 
@@ -35,40 +34,31 @@ export class EventRepositorySqlite extends EventRepository {
 
   async upsert(event: Event): Promise<EventRepositoryUpsertResult> {
     const upsertTransaction = this.db.transaction((event: Event) => {
-      const type = EventUtils.getType(event);
       const author = EventUtils.getAuthor(event, false);
       const dTagValue = EventUtils.extractDTagValue(event);
       const genericTags = this.extractGenericTags(event);
 
-      let oldEvent: Event | undefined | null;
-      if (
-        [EventType.REPLACEABLE, EventType.PARAMETERIZED_REPLACEABLE].includes(
-          type,
-        )
-      ) {
-        const oldEventRow = this.db
-          .prepare(
-            `SELECT * FROM events WHERE kind = ? AND author = ? AND d_tag_value = ?`,
-          )
-          .get(event.kind, author, dTagValue);
-        if (oldEventRow) oldEvent = this.toEvent(oldEventRow);
-
-        if (
-          oldEvent &&
-          (oldEvent.created_at > event.created_at ||
-            (oldEvent.created_at === event.created_at &&
-              oldEvent.id <= event.id))
-        ) {
-          return { isDuplicate: true };
-        }
-
-        if (oldEvent) {
-          this.db.prepare(`DELETE FROM events WHERE id = ?`).run(oldEvent.id);
-        }
-      }
-      this.db
+      const insertEventResult = this.db
         .prepare(
-          `INSERT INTO events (id, pubkey, author, created_at, kind, tags, content, sig, d_tag_value) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          `
+            INSERT INTO events 
+              (id, pubkey, author, created_at, kind, tags, content, sig, d_tag_value)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT (author, kind, d_tag_value) WHERE d_tag_value IS NOT NULL
+            DO UPDATE SET
+              id = excluded.id,
+              pubkey = excluded.pubkey,
+              created_at = excluded.created_at,
+              tags = excluded.tags,
+              content = excluded.content,
+              sig = excluded.sig
+            WHERE
+              events.created_at < excluded.created_at
+              OR (
+                  events.created_at = excluded.created_at
+                  AND events.id > excluded.id
+              )
+          `,
         )
         .run(
           event.id,
@@ -81,6 +71,11 @@ export class EventRepositorySqlite extends EventRepository {
           event.sig,
           dTagValue,
         );
+
+      if (insertEventResult.changes === 0) {
+        return { isDuplicate: true };
+      }
+
       if (genericTags.length > 0) {
         this.db
           .prepare(
@@ -153,13 +148,6 @@ export class EventRepositorySqlite extends EventRepository {
     if (kinds?.length) {
       whereClauses.push(`kind IN (${kinds.map(() => '?').join(',')})`);
       whereValues.push(...kinds);
-    }
-
-    if (filter['#d']?.length) {
-      whereClauses.push(
-        `d_tag_value IN (${filter['#d'].map(() => '?').join(',')})`,
-      );
-      whereValues.push(...filter['#d']);
     }
 
     if (since) {
@@ -278,14 +266,13 @@ export class EventRepositorySqlite extends EventRepository {
   private shouldQueryFromGenericTags(filter: Filter): boolean {
     return (
       !!this.extractGenericTagsCollectionFrom(filter).length &&
-      !filter.ids?.length &&
-      !filter['#d']?.length
+      !filter.ids?.length
     );
   }
 
   private extractGenericTagsCollectionFrom(filter: Filter): string[][] {
     return Object.keys(filter)
-      .filter(key => key.startsWith('#') && key !== '#d')
+      .filter(key => key.startsWith('#'))
       .map(key => {
         const tagName = key[1];
         return filter[key].map((v: string) => this.toGenericTag(tagName, v));
