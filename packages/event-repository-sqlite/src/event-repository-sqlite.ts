@@ -220,8 +220,7 @@ export class EventRepositorySqlite extends EventRepository {
       whereValues.push(until);
     }
 
-    const whereClause =
-      whereClauses.length > 0 ? `WHERE ${whereClauses.join(' AND ')}` : '';
+    const whereClause = `WHERE ${whereClauses.join(' AND ')}`;
     const rows = this.db
       .prepare(
         `SELECT * FROM events WHERE id IN (SELECT DISTINCT g.event_id FROM generic_tags g LEFT JOIN events e ON g.event_id = e.id ${innerJoinClauses.join(

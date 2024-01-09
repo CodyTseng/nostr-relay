@@ -13,7 +13,7 @@ describe('EventRepositorySqlite', () => {
   });
 
   afterEach(async () => {
-    await eventRepository.close();
+    eventRepository.close();
   });
 
   describe('upsert', () => {
@@ -134,11 +134,9 @@ describe('EventRepositorySqlite', () => {
     });
 
     it('should throw an error', async () => {
-      jest
-        .spyOn(eventRepository['db'], 'transaction')
-        .mockImplementation(() => {
-          throw new Error('test');
-        });
+      jest.spyOn(eventRepository['db'], 'prepare').mockImplementation(() => {
+        throw new Error('test');
+      });
 
       await expect(eventRepository.upsert(createEvent())).rejects.toThrow(
         'test',
@@ -176,6 +174,11 @@ describe('EventRepositorySqlite', () => {
 
     beforeEach(async () => {
       await Promise.all(events.map(event => eventRepository.upsert(event)));
+    });
+
+    it('should return all events', async () => {
+      const result = await eventRepository.find({});
+      expect(result).toEqual(events);
     });
 
     it('should filter by kind', async () => {
