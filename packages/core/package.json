@@ -16,6 +16,10 @@
   "publishConfig": {
     "access": "public"
   },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/CodyTseng/nostr-relay.git"
+  },
   "scripts": {
     "build": "tsc -b -v",
     "clean": "tsc -b --clean"
