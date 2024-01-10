@@ -309,4 +309,11 @@ describe('EventRepositorySqlite', () => {
       });
     });
   });
+
+  describe('migrate', () => {
+    it('should not run migration if already migrated', async () => {
+      const result = (eventRepository as any).migrate();
+      expect(result.executedMigrations).toHaveLength(0);
+    });
+  });
 });
