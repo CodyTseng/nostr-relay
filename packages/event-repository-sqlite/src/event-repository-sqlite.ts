@@ -274,7 +274,10 @@ export class EventRepositorySqlite extends EventRepository {
       });
   }
 
-  private migrate() {
+  private migrate(): {
+    lastMigration: string | undefined;
+    executedMigrations: string[];
+  } {
     this.db.exec(`
       CREATE TABLE IF NOT EXISTS nostr_relay_migrations (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
