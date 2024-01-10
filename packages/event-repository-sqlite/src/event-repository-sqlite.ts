@@ -6,7 +6,7 @@ import {
   Filter,
 } from '@nostr-relay/common';
 import * as BetterSqlite3 from 'better-sqlite3';
-import { readFileSync } from 'fs';
+import { readFileSync, readdirSync } from 'fs';
 import * as path from 'path';
 
 export class EventRepositorySqlite extends EventRepository {
@@ -17,11 +17,7 @@ export class EventRepositorySqlite extends EventRepository {
     this.db = new BetterSqlite3(filename);
     this.db.pragma('journal_mode = WAL');
 
-    const migration = readFileSync(
-      path.join(__dirname, '../migrations/001-initial-up.sql'),
-      'utf8',
-    );
-    this.db.exec(migration);
+    this.migrate();
   }
 
   close(): void {
@@ -276,5 +272,60 @@ export class EventRepositorySqlite extends EventRepository {
         const tagName = key[1];
         return filter[key].map((v: string) => this.toGenericTag(tagName, v));
       });
+  }
+
+  private migrate(): {
+    lastMigration: string | undefined;
+    executedMigrations: string[];
+  } {
+    this.db.exec(`
+      CREATE TABLE IF NOT EXISTS nostr_relay_migrations (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        name TEXT NOT NULL,
+        created_at INTEGER NOT NULL
+      )
+    `);
+
+    const lastMigration = this.db
+      .prepare(`SELECT * FROM nostr_relay_migrations ORDER BY id DESC LIMIT 1`)
+      .get() as { name: string } | undefined;
+
+    const migrationFileNames = readdirSync(
+      path.join(__dirname, '../migrations'),
+    ).filter(fileName => fileName.endsWith('.sql'));
+
+    const migrationsToRun = (
+      lastMigration
+        ? migrationFileNames.filter(fileName => fileName > lastMigration.name)
+        : migrationFileNames
+    ).sort();
+
+    if (migrationsToRun.length === 0) {
+      return {
+        lastMigration: lastMigration?.name,
+        executedMigrations: [],
+      };
+    }
+
+    const runMigrations = this.db.transaction(() => {
+      migrationsToRun.forEach(fileName => {
+        const migration = readFileSync(
+          path.join(__dirname, '../migrations', fileName),
+          'utf8',
+        );
+        this.db.exec(migration);
+        this.db
+          .prepare(
+            `INSERT INTO nostr_relay_migrations (name, created_at) VALUES (?, ?)`,
+          )
+          .run(fileName, Date.now());
+      });
+    });
+    runMigrations();
+
+    return {
+      lastMigration: migrationsToRun[migrationsToRun.length - 1],
+      executedMigrations: migrationsToRun,
+    };
   }
 }
