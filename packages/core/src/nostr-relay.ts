@@ -100,14 +100,14 @@ export class NostrRelay {
     return this;
   }
 
-  async handleConnection(client: Client): Promise<void> {
+  handleConnection(client: Client): void {
     const { id } = this.clientMetadataService.connect(client);
     if (this.domain) {
       sendMessage(client, createOutgoingAuthMessage(id));
     }
   }
 
-  async handleDisconnect(client: Client): Promise<void> {
+  handleDisconnect(client: Client): void {
     this.clientMetadataService.disconnect(client);
   }
 
