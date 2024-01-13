@@ -1,3 +1,4 @@
+import { ClientContext } from '../client-context';
 import { Event, EventHandleResult } from './event.interface';
 
 export type NostrRelayPlugin =
@@ -7,20 +8,27 @@ export type NostrRelayPlugin =
   | AfterEventBroadcast;
 
 export interface BeforeEventHandle {
-  beforeEventHandle(event: Event): Promise<boolean> | boolean;
+  beforeEventHandle(
+    ctx: ClientContext,
+    event: Event,
+  ): Promise<boolean> | boolean;
 }
 
 export interface AfterEventHandle {
   afterEventHandle(
+    ctx: ClientContext,
     event: Event,
     handleResult: EventHandleResult,
-  ): Promise<EventHandleResult> | EventHandleResult;
+  ): Promise<void> | void;
 }
 
 export interface BeforeEventBroadcast {
-  beforeEventBroadcast(event: Event): Promise<boolean> | boolean;
+  beforeEventBroadcast(
+    ctx: ClientContext,
+    event: Event,
+  ): Promise<boolean> | boolean;
 }
 
 export interface AfterEventBroadcast {
-  afterEventBroadcast(event: Event): Promise<void> | void;
+  afterEventBroadcast(ctx: ClientContext, event: Event): Promise<void> | void;
 }

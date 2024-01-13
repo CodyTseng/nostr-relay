@@ -1,11 +1,16 @@
-import { Event } from '../../../common';
+import { ClientContext, ClientReadyState, Event } from '../../../common';
 import { PluginManagerService } from '../../src/services/plugin-manager.service';
 
 describe('PluginManagerService', () => {
   let pluginManagerService: PluginManagerService;
+  let ctx: ClientContext;
 
   beforeEach(() => {
     pluginManagerService = new PluginManagerService();
+    ctx = new ClientContext({
+      readyState: ClientReadyState.OPEN,
+      send: jest.fn(),
+    });
   });
 
   describe('register', () => {
@@ -96,12 +101,14 @@ describe('PluginManagerService', () => {
       pluginManagerService.register(pluginA);
       pluginManagerService.register(pluginB);
 
-      const result =
-        await pluginManagerService.callBeforeEventHandleHooks(event);
+      const result = await pluginManagerService.callBeforeEventHandleHooks(
+        ctx,
+        event,
+      );
 
       expect(result).toBe(true);
-      expect(pluginA.beforeEventHandle).toHaveBeenCalledWith(event);
-      expect(pluginB.beforeEventHandle).toHaveBeenCalledWith(event);
+      expect(pluginA.beforeEventHandle).toHaveBeenCalledWith(ctx, event);
+      expect(pluginB.beforeEventHandle).toHaveBeenCalledWith(ctx, event);
 
       const pluginACallOrder =
         pluginA.beforeEventHandle.mock.invocationCallOrder[0];
@@ -122,43 +129,46 @@ describe('PluginManagerService', () => {
       pluginManagerService.register(pluginA);
       pluginManagerService.register(pluginB);
 
-      const result =
-        await pluginManagerService.callBeforeEventHandleHooks(event);
+      const result = await pluginManagerService.callBeforeEventHandleHooks(
+        ctx,
+        event,
+      );
 
       expect(result).toBe(false);
-      expect(pluginA.beforeEventHandle).toHaveBeenCalledWith(event);
+      expect(pluginA.beforeEventHandle).toHaveBeenCalledWith(ctx, event);
       expect(pluginB.beforeEventHandle).not.toHaveBeenCalled();
     });
   });
 
   describe('callAfterEventHandleHooks', () => {
     it('should run after event handle plugins', async () => {
-      const handleResultA = { success: true };
-      const handleResultB = { success: false, message: 'test' };
+      const handleResult = { success: true };
       const pluginA = {
-        afterEventHandle: jest.fn().mockReturnValue(handleResultB),
+        afterEventHandle: jest.fn().mockImplementation(),
       };
       const pluginB = {
-        afterEventHandle: jest.fn().mockReturnValue(handleResultA),
+        afterEventHandle: jest.fn().mockImplementation(),
       };
       const event = {} as Event;
 
       pluginManagerService.register(pluginA);
       pluginManagerService.register(pluginB);
 
-      const result = await pluginManagerService.callAfterEventHandleHooks(
+      await pluginManagerService.callAfterEventHandleHooks(
+        ctx,
         event,
-        handleResultA,
+        handleResult,
       );
 
-      expect(result).toEqual(handleResultB);
       expect(pluginB.afterEventHandle).toHaveBeenCalledWith(
+        ctx,
         event,
-        handleResultA,
+        handleResult,
       );
       expect(pluginA.afterEventHandle).toHaveBeenCalledWith(
+        ctx,
         event,
-        handleResultA,
+        handleResult,
       );
 
       const pluginBCallOrder =
@@ -182,12 +192,14 @@ describe('PluginManagerService', () => {
       pluginManagerService.register(pluginA);
       pluginManagerService.register(pluginB);
 
-      const result =
-        await pluginManagerService.callBeforeEventBroadcastHooks(event);
+      const result = await pluginManagerService.callBeforeEventBroadcastHooks(
+        ctx,
+        event,
+      );
 
       expect(result).toBe(true);
-      expect(pluginA.beforeEventBroadcast).toHaveBeenCalledWith(event);
-      expect(pluginB.beforeEventBroadcast).toHaveBeenCalledWith(event);
+      expect(pluginA.beforeEventBroadcast).toHaveBeenCalledWith(ctx, event);
+      expect(pluginB.beforeEventBroadcast).toHaveBeenCalledWith(ctx, event);
 
       const pluginACallOrder =
         pluginA.beforeEventBroadcast.mock.invocationCallOrder[0];
@@ -208,11 +220,13 @@ describe('PluginManagerService', () => {
       pluginManagerService.register(pluginA);
       pluginManagerService.register(pluginB);
 
-      const result =
-        await pluginManagerService.callBeforeEventBroadcastHooks(event);
+      const result = await pluginManagerService.callBeforeEventBroadcastHooks(
+        ctx,
+        event,
+      );
 
       expect(result).toBe(false);
-      expect(pluginA.beforeEventBroadcast).toHaveBeenCalledWith(event);
+      expect(pluginA.beforeEventBroadcast).toHaveBeenCalledWith(ctx, event);
       expect(pluginB.beforeEventBroadcast).not.toHaveBeenCalled();
     });
   });
@@ -230,10 +244,10 @@ describe('PluginManagerService', () => {
       pluginManagerService.register(pluginA);
       pluginManagerService.register(pluginB);
 
-      await pluginManagerService.callAfterEventBroadcastHooks(event);
+      await pluginManagerService.callAfterEventBroadcastHooks(ctx, event);
 
-      expect(pluginB.afterEventBroadcast).toHaveBeenCalledWith(event);
-      expect(pluginA.afterEventBroadcast).toHaveBeenCalledWith(event);
+      expect(pluginB.afterEventBroadcast).toHaveBeenCalledWith(ctx, event);
+      expect(pluginA.afterEventBroadcast).toHaveBeenCalledWith(ctx, event);
 
       const pluginBCallOrder =
         pluginB.afterEventBroadcast.mock.invocationCallOrder[0];

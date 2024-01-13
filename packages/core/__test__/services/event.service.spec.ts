@@ -1,6 +1,8 @@
 import { from } from 'rxjs';
 import {
   BroadcastService,
+  ClientContext,
+  ClientReadyState,
   Event,
   EventKind,
   EventRepository,
@@ -16,6 +18,7 @@ describe('eventService', () => {
   let eventRepository: EventRepository;
   let broadcastService: BroadcastService;
   let pluginManagerService: PluginManagerService;
+  let ctx: ClientContext;
 
   beforeEach(() => {
     eventRepository = {
@@ -40,6 +43,10 @@ describe('eventService', () => {
         filterResultCacheTtl: 0,
       },
     );
+    ctx = new ClientContext({
+      readyState: ClientReadyState.OPEN,
+      send: jest.fn(),
+    });
   });
 
   describe('find', () => {
@@ -104,7 +111,7 @@ describe('eventService', () => {
   describe('handleEvent', () => {
     it('should directly return if event is authentication', async () => {
       expect(
-        await eventService.handleEvent({
+        await eventService.handleEvent(ctx, {
           kind: EventKind.AUTHENTICATION,
         } as Event),
       ).toBeUndefined();
@@ -118,7 +125,7 @@ describe('eventService', () => {
 
       jest.spyOn(eventRepository, 'findOne').mockResolvedValue(event);
 
-      expect(await eventService.handleEvent(event)).toEqual({
+      expect(await eventService.handleEvent(ctx, event)).toEqual({
         success: true,
         message: 'duplicate: the event already exists',
       });
@@ -131,7 +138,7 @@ describe('eventService', () => {
         .spyOn(EventUtils, 'validate')
         .mockReturnValue('error: invalid event');
 
-      expect(await eventService.handleEvent(event)).toEqual({
+      expect(await eventService.handleEvent(ctx, event)).toEqual({
         success: false,
         message: 'error: invalid event',
       });
@@ -153,9 +160,9 @@ describe('eventService', () => {
       jest.spyOn(EventUtils, 'validate').mockReturnValue(undefined);
 
       const event = { id: 'a', kind: EventKind.EPHEMERAL_FIRST } as Event;
-      expect(await eventService.handleEvent(event)).toBeUndefined();
-      expect(mockBeforeEventBroadcast).toHaveBeenCalledWith(event);
-      expect(mockAfterEventBroadcast).toHaveBeenCalledWith(event);
+      expect(await eventService.handleEvent(ctx, event)).toBeUndefined();
+      expect(mockBeforeEventBroadcast).toHaveBeenCalledWith(ctx, event);
+      expect(mockAfterEventBroadcast).toHaveBeenCalledWith(ctx, event);
       expect(broadcastService.broadcast).toHaveBeenCalledWith(event);
     });
 
@@ -169,7 +176,7 @@ describe('eventService', () => {
       jest.spyOn(EventUtils, 'validate').mockReturnValue(undefined);
 
       const event = { id: 'a', kind: EventKind.EPHEMERAL_FIRST } as Event;
-      expect(await eventService.handleEvent(event)).toBeUndefined();
+      expect(await eventService.handleEvent(ctx, event)).toBeUndefined();
       expect(broadcastService.broadcast).not.toHaveBeenCalled();
     });
 
@@ -182,7 +189,7 @@ describe('eventService', () => {
         .spyOn(eventRepository, 'upsert')
         .mockResolvedValue({ isDuplicate: false });
 
-      expect(await eventService.handleEvent(event)).toEqual({
+      expect(await eventService.handleEvent(ctx, event)).toEqual({
         success: true,
       });
       expect(broadcastService.broadcast).toHaveBeenCalledWith(event);
@@ -197,7 +204,7 @@ describe('eventService', () => {
         .spyOn(eventRepository, 'upsert')
         .mockResolvedValue({ isDuplicate: true });
 
-      expect(await eventService.handleEvent(event)).toEqual({
+      expect(await eventService.handleEvent(ctx, event)).toEqual({
         success: true,
         message: 'duplicate: the event already exists',
       });
@@ -213,7 +220,7 @@ describe('eventService', () => {
         throw new Error('test');
       });
 
-      expect(await eventService.handleEvent(event)).toEqual({
+      expect(await eventService.handleEvent(ctx, event)).toEqual({
         success: false,
         message: 'error: test',
       });
@@ -228,7 +235,7 @@ describe('eventService', () => {
       jest.spyOn(EventUtils, 'validate').mockReturnValue(undefined);
       jest.spyOn(eventRepository, 'upsert').mockRejectedValue('unknown');
 
-      expect(await eventService.handleEvent(event)).toEqual({
+      expect(await eventService.handleEvent(ctx, event)).toEqual({
         success: false,
         message: 'error: unknown',
       });

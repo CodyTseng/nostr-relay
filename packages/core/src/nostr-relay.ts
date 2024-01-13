@@ -137,22 +137,22 @@ export class NostrRelay {
     const ctx = this.getClientContext(client);
     const callback = async (): Promise<OutgoingMessage | undefined> => {
       const canHandle =
-        await this.pluginManagerService.callBeforeEventHandleHooks(event);
+        await this.pluginManagerService.callBeforeEventHandleHooks(ctx, event);
       if (!canHandle) return;
 
-      const handleResult = await this.eventService.handleEvent(event);
+      const handleResult = await this.eventService.handleEvent(ctx, event);
 
-      const afterPluginsHandleResult =
-        await this.pluginManagerService.callAfterEventHandleHooks(
-          event,
-          handleResult,
-        );
+      await this.pluginManagerService.callAfterEventHandleHooks(
+        ctx,
+        event,
+        handleResult,
+      );
 
-      if (afterPluginsHandleResult) {
+      if (handleResult) {
         return createOutgoingOkMessage(
           event.id,
-          afterPluginsHandleResult.success,
-          afterPluginsHandleResult.message,
+          handleResult.success,
+          handleResult.message,
         );
       }
     };

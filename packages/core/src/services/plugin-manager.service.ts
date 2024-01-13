@@ -3,6 +3,7 @@ import {
   AfterEventHandle,
   BeforeEventBroadcast,
   BeforeEventHandle,
+  ClientContext,
   Event,
   EventHandleResult,
   NostrRelayPlugin,
@@ -29,35 +30,44 @@ export class PluginManagerService {
     }
   }
 
-  async callBeforeEventHandleHooks(event: Event): Promise<boolean> {
-    for (const plugin of this.beforeEventHandlePlugins) {
-      const result = await plugin.beforeEventHandle(event);
-      if (result === false) return false;
+  async callBeforeEventHandleHooks(
+    ctx: ClientContext,
+    event: Event,
+  ): Promise<boolean> {
+    for await (const plugin of this.beforeEventHandlePlugins) {
+      const canHandle = await plugin.beforeEventHandle(ctx, event);
+      if (!canHandle) return false;
     }
     return true;
   }
 
   async callAfterEventHandleHooks(
+    ctx: ClientContext,
     event: Event,
     handleResult: EventHandleResult,
-  ): Promise<EventHandleResult> {
-    for (const plugin of this.afterEventHandlePlugins) {
-      handleResult = await plugin.afterEventHandle(event, handleResult);
+  ): Promise<void> {
+    for await (const plugin of this.afterEventHandlePlugins) {
+      await plugin.afterEventHandle(ctx, event, handleResult);
     }
-    return handleResult;
   }
 
-  async callBeforeEventBroadcastHooks(event: Event): Promise<boolean> {
-    for (const plugin of this.beforeEventBroadcastPlugins) {
-      const result = await plugin.beforeEventBroadcast(event);
-      if (result === false) return false;
+  async callBeforeEventBroadcastHooks(
+    ctx: ClientContext,
+    event: Event,
+  ): Promise<boolean> {
+    for await (const plugin of this.beforeEventBroadcastPlugins) {
+      const canBroadcast = await plugin.beforeEventBroadcast(ctx, event);
+      if (!canBroadcast) return false;
     }
     return true;
   }
 
-  async callAfterEventBroadcastHooks(event: Event): Promise<void> {
-    for (const plugin of this.afterEventBroadcastPlugins) {
-      await plugin.afterEventBroadcast(event);
+  async callAfterEventBroadcastHooks(
+    ctx: ClientContext,
+    event: Event,
+  ): Promise<void> {
+    for await (const plugin of this.afterEventBroadcastPlugins) {
+      await plugin.afterEventBroadcast(ctx, event);
     }
   }
 

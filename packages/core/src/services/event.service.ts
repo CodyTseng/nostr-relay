@@ -9,6 +9,7 @@ import {
   Filter,
   EventHandleResult,
   Logger,
+  ClientContext,
 } from '@nostr-relay/common';
 import { EMPTY, Observable, distinct, from, merge, mergeMap } from 'rxjs';
 import { LazyCache } from '../utils';
@@ -64,7 +65,10 @@ export class EventService {
     );
   }
 
-  async handleEvent(event: Event): Promise<EventHandleResult> {
+  async handleEvent(
+    ctx: ClientContext,
+    event: Event,
+  ): Promise<EventHandleResult> {
     if (event.kind === EventKind.AUTHENTICATION) return;
 
     const exists = await this.checkEventExists(event);
@@ -90,9 +94,9 @@ export class EventService {
     try {
       const eventType = EventUtils.getType(event);
       if (eventType === EventType.EPHEMERAL) {
-        return await this.handleEphemeralEvent(event);
+        return await this.handleEphemeralEvent(ctx, event);
       }
-      return await this.handleRegularEvent(event);
+      return await this.handleRegularEvent(ctx, event);
     } catch (error) {
       this.logger.error(`${EventService.name}.handleEvent`, error);
       if (error instanceof Error) {
@@ -128,15 +132,21 @@ export class EventService {
       : callback();
   }
 
-  private async handleEphemeralEvent(event: Event): Promise<void> {
-    await this.broadcast(event);
+  private async handleEphemeralEvent(
+    ctx: ClientContext,
+    event: Event,
+  ): Promise<void> {
+    await this.broadcast(ctx, event);
   }
 
-  private async handleRegularEvent(event: Event): Promise<EventHandleResult> {
+  private async handleRegularEvent(
+    ctx: ClientContext,
+    event: Event,
+  ): Promise<EventHandleResult> {
     const { isDuplicate } = await this.eventRepository.upsert(event);
 
     if (!isDuplicate) {
-      await this.broadcast(event);
+      await this.broadcast(ctx, event);
     }
     return {
       success: true,
@@ -151,13 +161,13 @@ export class EventService {
     return !!exists;
   }
 
-  private async broadcast(event: Event): Promise<void> {
+  private async broadcast(ctx: ClientContext, event: Event): Promise<void> {
     const canBroadcast =
-      await this.pluginManagerService.callBeforeEventBroadcastHooks(event);
+      await this.pluginManagerService.callBeforeEventBroadcastHooks(ctx, event);
     if (!canBroadcast) return;
 
     await this.broadcastService.broadcast(event);
 
-    await this.pluginManagerService.callAfterEventBroadcastHooks(event);
+    await this.pluginManagerService.callAfterEventBroadcastHooks(ctx, event);
   }
 }
