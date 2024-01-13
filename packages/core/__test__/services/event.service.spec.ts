@@ -114,7 +114,7 @@ describe('eventService', () => {
         await eventService.handleEvent(ctx, {
           kind: EventKind.AUTHENTICATION,
         } as Event),
-      ).toBeUndefined();
+      ).toEqual({ success: true, noReplyNeeded: true });
       expect(eventRepository.findOne).not.toHaveBeenCalled();
       expect(eventRepository.upsert).not.toHaveBeenCalled();
       expect(broadcastService.broadcast).not.toHaveBeenCalled();
@@ -150,7 +150,7 @@ describe('eventService', () => {
           eventService['pluginManagerService'],
           'callBeforeEventBroadcastHooks',
         )
-        .mockResolvedValue(true);
+        .mockResolvedValue({ canContinue: true });
       const mockAfterEventBroadcast = jest
         .spyOn(
           eventService['pluginManagerService'],
@@ -160,7 +160,10 @@ describe('eventService', () => {
       jest.spyOn(EventUtils, 'validate').mockReturnValue(undefined);
 
       const event = { id: 'a', kind: EventKind.EPHEMERAL_FIRST } as Event;
-      expect(await eventService.handleEvent(ctx, event)).toBeUndefined();
+      expect(await eventService.handleEvent(ctx, event)).toEqual({
+        noReplyNeeded: true,
+        success: true,
+      });
       expect(mockBeforeEventBroadcast).toHaveBeenCalledWith(ctx, event);
       expect(mockAfterEventBroadcast).toHaveBeenCalledWith(ctx, event);
       expect(broadcastService.broadcast).toHaveBeenCalledWith(event);
@@ -172,11 +175,14 @@ describe('eventService', () => {
           eventService['pluginManagerService'],
           'callBeforeEventBroadcastHooks',
         )
-        .mockResolvedValue(false);
+        .mockResolvedValue({ canContinue: false });
       jest.spyOn(EventUtils, 'validate').mockReturnValue(undefined);
 
       const event = { id: 'a', kind: EventKind.EPHEMERAL_FIRST } as Event;
-      expect(await eventService.handleEvent(ctx, event)).toBeUndefined();
+      expect(await eventService.handleEvent(ctx, event)).toEqual({
+        noReplyNeeded: true,
+        success: true,
+      });
       expect(broadcastService.broadcast).not.toHaveBeenCalled();
     });
 

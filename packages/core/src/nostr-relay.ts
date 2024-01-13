@@ -3,6 +3,7 @@ import {
   Client,
   ClientContext,
   Event,
+  EventHandleResult,
   EventId,
   EventRepository,
   EventUtils,
@@ -12,7 +13,6 @@ import {
   Logger,
   MessageType,
   NostrRelayPlugin,
-  OutgoingMessage,
   SubscriptionId,
 } from '@nostr-relay/common';
 import { endWith, filter, map } from 'rxjs';
@@ -41,12 +41,36 @@ type NostrRelayOptions = {
   eventHandlingResultCacheTtl?: number;
 };
 
+type HandleReqMessageResult = {
+  eventCount: number;
+};
+
+type HandleEventMessageResult = {
+  success: boolean;
+  message?: string;
+};
+
+type HandleCloseMessageResult = {
+  success: boolean;
+};
+
+type HandleAuthMessageResult = {
+  success: boolean;
+};
+
+type HandleMessageResult =
+  | ({ messageType: MessageType.REQ } & HandleReqMessageResult)
+  | ({ messageType: MessageType.EVENT } & HandleEventMessageResult)
+  | ({ messageType: MessageType.CLOSE } & HandleCloseMessageResult)
+  | ({ messageType: MessageType.AUTH } & HandleAuthMessageResult)
+  | void;
+
 export class NostrRelay {
   private readonly options: NostrRelayOptions;
   private readonly eventService: EventService;
   private readonly subscriptionService: SubscriptionService;
   private readonly eventHandlingLazyCache:
-    | LazyCache<EventId, Promise<OutgoingMessage | void>>
+    | LazyCache<EventId, Promise<EventHandleResult>>
     | undefined;
   private readonly domain?: string;
   private readonly pluginManagerService: PluginManagerService;
@@ -110,22 +134,45 @@ export class NostrRelay {
     this.clientContexts.delete(client);
   }
 
-  async handleMessage(client: Client, message: IncomingMessage): Promise<void> {
+  async handleMessage(
+    client: Client,
+    message: IncomingMessage,
+  ): Promise<HandleMessageResult> {
     if (message[0] === MessageType.EVENT) {
       const [, event] = message;
-      return this.handleEventMessage(client, event);
+      const result = await this.handleEventMessage(client, event);
+      return {
+        messageType: MessageType.EVENT,
+        ...result,
+      };
     }
     if (message[0] === MessageType.REQ) {
       const [, subscriptionId, ...filters] = message;
-      return this.handleReqMessage(client, subscriptionId, filters);
+      const result = await this.handleReqMessage(
+        client,
+        subscriptionId,
+        filters,
+      );
+      return {
+        messageType: MessageType.REQ,
+        ...result,
+      };
     }
     if (message[0] === MessageType.CLOSE) {
       const [, subscriptionId] = message;
-      return this.handleCloseMessage(client, subscriptionId);
+      const result = this.handleCloseMessage(client, subscriptionId);
+      return {
+        messageType: MessageType.CLOSE,
+        ...result,
+      };
     }
     if (message[0] === MessageType.AUTH) {
       const [, signedEvent] = message;
-      return this.handleAuthMessage(client, signedEvent);
+      const result = this.handleAuthMessage(client, signedEvent);
+      return {
+        messageType: MessageType.AUTH,
+        ...result,
+      };
     }
     const ctx = this.getClientContext(client);
     ctx.sendMessage(
@@ -133,12 +180,17 @@ export class NostrRelay {
     );
   }
 
-  async handleEventMessage(client: Client, event: Event): Promise<void> {
+  async handleEventMessage(
+    client: Client,
+    event: Event,
+  ): Promise<HandleEventMessageResult> {
     const ctx = this.getClientContext(client);
-    const callback = async (): Promise<OutgoingMessage | undefined> => {
-      const canHandle =
+    const callback = async (): Promise<EventHandleResult> => {
+      const hookResult =
         await this.pluginManagerService.callBeforeEventHandleHooks(ctx, event);
-      if (!canHandle) return;
+      if (!hookResult.canContinue) {
+        return hookResult.result;
+      }
 
       const handleResult = await this.eventService.handleEvent(ctx, event);
 
@@ -148,27 +200,34 @@ export class NostrRelay {
         handleResult,
       );
 
-      if (handleResult) {
-        return createOutgoingOkMessage(
-          event.id,
-          handleResult.success,
-          handleResult.message,
-        );
-      }
+      return handleResult;
     };
 
-    const outgoingMessage = this.eventHandlingLazyCache
+    const handleResult = this.eventHandlingLazyCache
       ? await this.eventHandlingLazyCache.get(event.id, callback)
       : await callback();
 
-    return ctx.sendMessage(outgoingMessage);
+    if (handleResult.noReplyNeeded !== true) {
+      ctx.sendMessage(
+        createOutgoingOkMessage(
+          event.id,
+          handleResult.success,
+          handleResult.message,
+        ),
+      );
+    }
+
+    return {
+      success: handleResult.success,
+      message: handleResult.message,
+    };
   }
 
   async handleReqMessage(
     client: Client,
     subscriptionId: SubscriptionId,
     filters: Filter[],
-  ): Promise<void> {
+  ): Promise<HandleReqMessageResult> {
     const ctx = this.getClientContext(client);
     if (
       this.domain &&
@@ -177,16 +236,20 @@ export class NostrRelay {
       ) &&
       !ctx.pubkey
     ) {
-      return ctx.sendMessage(
+      ctx.sendMessage(
         createOutgoingNoticeMessage(
           "restricted: we can't serve DMs to unauthenticated users, does your client implement NIP-42?",
         ),
       );
+      return {
+        eventCount: 0,
+      };
     }
 
     this.subscriptionService.subscribe(ctx, subscriptionId, filters);
 
-    await new Promise<void>((resolve, reject) => {
+    const eventCount = await new Promise<number>((resolve, reject) => {
+      let eventCount = 0;
       const event$ = this.eventService.find(filters);
       event$
         .pipe(
@@ -198,24 +261,39 @@ export class NostrRelay {
           endWith(createOutgoingEoseMessage(subscriptionId)),
         )
         .subscribe({
-          next: message => ctx.sendMessage(message),
+          next: message => {
+            ctx.sendMessage(message);
+            eventCount++;
+          },
           error: error => reject(error),
-          complete: () => resolve(),
+          complete: () => resolve(eventCount),
         });
     });
+
+    return {
+      eventCount,
+    };
   }
 
-  handleCloseMessage(client: Client, subscriptionId: SubscriptionId): void {
+  handleCloseMessage(
+    client: Client,
+    subscriptionId: SubscriptionId,
+  ): HandleCloseMessageResult {
     this.subscriptionService.unsubscribe(
       this.getClientContext(client),
       subscriptionId,
     );
+    return { success: true };
   }
 
-  handleAuthMessage(client: Client, signedEvent: Event): void {
+  handleAuthMessage(
+    client: Client,
+    signedEvent: Event,
+  ): HandleAuthMessageResult {
     const ctx = this.getClientContext(client);
     if (!this.domain) {
-      return ctx.sendMessage(createOutgoingOkMessage(signedEvent.id, true));
+      ctx.sendMessage(createOutgoingOkMessage(signedEvent.id, true));
+      return { success: true };
     }
 
     const validateErrorMsg = EventUtils.isSignedEventValid(
@@ -224,13 +302,15 @@ export class NostrRelay {
       this.domain,
     );
     if (validateErrorMsg) {
-      return ctx.sendMessage(
+      ctx.sendMessage(
         createOutgoingOkMessage(signedEvent.id, false, validateErrorMsg),
       );
+      return { success: false };
     }
 
     ctx.pubkey = EventUtils.getAuthor(signedEvent);
-    return ctx.sendMessage(createOutgoingOkMessage(signedEvent.id, true));
+    ctx.sendMessage(createOutgoingOkMessage(signedEvent.id, true));
+    return { success: true };
   }
 
   isAuthorized(client: Client): boolean {

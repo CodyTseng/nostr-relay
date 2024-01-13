@@ -74,7 +74,7 @@ describe('NostrRelay', () => {
   describe('event', () => {
     it('should handle event successfully', async () => {
       const event = { id: 'eventId' } as Event;
-      const handleResult = { success: true };
+      const handleResult = { needResponse: true, success: true };
       const outgoingMessage: OutgoingOkMessage = [
         MessageType.OK,
         event.id,
@@ -83,7 +83,7 @@ describe('NostrRelay', () => {
       ];
 
       const mockPlugin = {
-        beforeEventHandle: jest.fn().mockReturnValue(true),
+        beforeEventHandle: jest.fn().mockReturnValue({ canContinue: true }),
         afterEventHandle: jest.fn().mockReturnValue(handleResult),
       };
       nostrRelay.register(mockPlugin);
@@ -136,7 +136,7 @@ describe('NostrRelay', () => {
     it('should not handle event due to plugin prevention', async () => {
       jest
         .spyOn(nostrRelay['pluginManagerService'], 'callBeforeEventHandleHooks')
-        .mockResolvedValue(false);
+        .mockResolvedValue({ canContinue: false, result: {} as any });
       const mockHandleEvent = jest
         .spyOn(nostrRelay['eventService'], 'handleEvent')
         .mockResolvedValue({ success: true });

@@ -69,7 +69,9 @@ export class EventService {
     ctx: ClientContext,
     event: Event,
   ): Promise<EventHandleResult> {
-    if (event.kind === EventKind.AUTHENTICATION) return;
+    if (event.kind === EventKind.AUTHENTICATION) {
+      return { success: true, noReplyNeeded: true };
+    }
 
     const exists = await this.checkEventExists(event);
     if (exists) {
@@ -135,8 +137,9 @@ export class EventService {
   private async handleEphemeralEvent(
     ctx: ClientContext,
     event: Event,
-  ): Promise<void> {
+  ): Promise<EventHandleResult> {
     await this.broadcast(ctx, event);
+    return { noReplyNeeded: true, success: true };
   }
 
   private async handleRegularEvent(
@@ -162,9 +165,9 @@ export class EventService {
   }
 
   private async broadcast(ctx: ClientContext, event: Event): Promise<void> {
-    const canBroadcast =
+    const hookResult =
       await this.pluginManagerService.callBeforeEventBroadcastHooks(ctx, event);
-    if (!canBroadcast) return;
+    if (!hookResult.canContinue) return;
 
     await this.broadcastService.broadcast(event);
 

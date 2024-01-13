@@ -91,10 +91,10 @@ describe('PluginManagerService', () => {
   describe('callBeforeEventHandleHooks', () => {
     it('should run before event handle plugins', async () => {
       const pluginA = {
-        beforeEventHandle: jest.fn().mockReturnValue(true),
+        beforeEventHandle: jest.fn().mockReturnValue({ canContinue: true }),
       };
       const pluginB = {
-        beforeEventHandle: jest.fn().mockReturnValue(true),
+        beforeEventHandle: jest.fn().mockReturnValue({ canContinue: true }),
       };
       const event = {} as Event;
 
@@ -106,7 +106,7 @@ describe('PluginManagerService', () => {
         event,
       );
 
-      expect(result).toBe(true);
+      expect(result).toEqual({ canContinue: true });
       expect(pluginA.beforeEventHandle).toHaveBeenCalledWith(ctx, event);
       expect(pluginB.beforeEventHandle).toHaveBeenCalledWith(ctx, event);
 
@@ -142,7 +142,7 @@ describe('PluginManagerService', () => {
 
   describe('callAfterEventHandleHooks', () => {
     it('should run after event handle plugins', async () => {
-      const handleResult = { success: true };
+      const handleResult = { needResponse: true, success: true };
       const pluginA = {
         afterEventHandle: jest.fn().mockImplementation(),
       };
@@ -182,10 +182,10 @@ describe('PluginManagerService', () => {
   describe('callBeforeEventBroadcastHooks', () => {
     it('should run before event broadcast plugins', async () => {
       const pluginA = {
-        beforeEventBroadcast: jest.fn().mockReturnValue(true),
+        beforeEventBroadcast: jest.fn().mockReturnValue({ canContinue: true }),
       };
       const pluginB = {
-        beforeEventBroadcast: jest.fn().mockReturnValue(true),
+        beforeEventBroadcast: jest.fn().mockReturnValue({ canContinue: true }),
       };
       const event = {} as Event;
 
@@ -197,7 +197,7 @@ describe('PluginManagerService', () => {
         event,
       );
 
-      expect(result).toBe(true);
+      expect(result).toEqual({ canContinue: true });
       expect(pluginA.beforeEventBroadcast).toHaveBeenCalledWith(ctx, event);
       expect(pluginB.beforeEventBroadcast).toHaveBeenCalledWith(ctx, event);
 

@@ -29,11 +29,9 @@ export class ClientContext {
     return this.client.readyState === ClientReadyState.OPEN;
   }
 
-  sendMessage(message: OutgoingMessage | undefined | null | void): void {
-    if (!message || this.client.readyState !== ClientReadyState.OPEN) {
-      return;
+  sendMessage(message: OutgoingMessage): void {
+    if (this.isOpen) {
+      this.client.send(JSON.stringify(message));
     }
-
-    this.client.send(JSON.stringify(message));
   }
 }

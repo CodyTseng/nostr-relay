@@ -3,6 +3,8 @@ import {
   AfterEventHandle,
   BeforeEventBroadcast,
   BeforeEventHandle,
+  BeforeEventHandleResult,
+  BeforeHookResult,
   ClientContext,
   Event,
   EventHandleResult,
@@ -33,12 +35,12 @@ export class PluginManagerService {
   async callBeforeEventHandleHooks(
     ctx: ClientContext,
     event: Event,
-  ): Promise<boolean> {
+  ): Promise<BeforeEventHandleResult> {
     for await (const plugin of this.beforeEventHandlePlugins) {
-      const canHandle = await plugin.beforeEventHandle(ctx, event);
-      if (!canHandle) return false;
+      const result = await plugin.beforeEventHandle(ctx, event);
+      if (!result.canContinue) return result;
     }
-    return true;
+    return { canContinue: true };
   }
 
   async callAfterEventHandleHooks(
@@ -54,12 +56,12 @@ export class PluginManagerService {
   async callBeforeEventBroadcastHooks(
     ctx: ClientContext,
     event: Event,
-  ): Promise<boolean> {
+  ): Promise<BeforeHookResult> {
     for await (const plugin of this.beforeEventBroadcastPlugins) {
-      const canBroadcast = await plugin.beforeEventBroadcast(ctx, event);
-      if (!canBroadcast) return false;
+      const result = await plugin.beforeEventBroadcast(ctx, event);
+      if (!result.canContinue) return result;
     }
-    return true;
+    return { canContinue: true };
   }
 
   async callAfterEventBroadcastHooks(

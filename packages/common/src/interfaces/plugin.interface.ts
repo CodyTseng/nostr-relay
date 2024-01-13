@@ -7,11 +7,19 @@ export type NostrRelayPlugin =
   | BeforeEventBroadcast
   | AfterEventBroadcast;
 
+export type BeforeHookResult<T = {}> =
+  | { canContinue: true }
+  | ({ canContinue: false } & T);
+
+export type BeforeEventHandleResult = BeforeHookResult<{
+  result: EventHandleResult;
+}>;
+
 export interface BeforeEventHandle {
   beforeEventHandle(
     ctx: ClientContext,
     event: Event,
-  ): Promise<boolean> | boolean;
+  ): Promise<BeforeEventHandleResult> | BeforeEventHandleResult;
 }
 
 export interface AfterEventHandle {
@@ -26,7 +34,7 @@ export interface BeforeEventBroadcast {
   beforeEventBroadcast(
     ctx: ClientContext,
     event: Event,
-  ): Promise<boolean> | boolean;
+  ): Promise<BeforeHookResult> | BeforeHookResult;
 }
 
 export interface AfterEventBroadcast {

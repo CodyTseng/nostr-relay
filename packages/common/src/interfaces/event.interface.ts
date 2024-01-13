@@ -13,4 +13,5 @@ export interface Event {
 export type EventHandleResult = {
   success: boolean;
   message?: string;
-} | void;
+  noReplyNeeded?: boolean;
+};
