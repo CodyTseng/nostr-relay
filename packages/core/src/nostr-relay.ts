@@ -42,20 +42,25 @@ type NostrRelayOptions = {
 };
 
 type HandleReqMessageResult = {
+  subscriptionId: SubscriptionId;
+  filters: Filter[];
   eventCount: number;
 };
 
 type HandleEventMessageResult = {
+  eventId: EventId;
   success: boolean;
   message?: string;
 };
 
 type HandleCloseMessageResult = {
+  subscriptionId: SubscriptionId;
   success: boolean;
 };
 
 type HandleAuthMessageResult = {
   success: boolean;
+  pubkey?: string;
 };
 
 type HandleMessageResult =
@@ -218,6 +223,7 @@ export class NostrRelay {
     }
 
     return {
+      eventId: event.id,
       success: handleResult.success,
       message: handleResult.message,
     };
@@ -242,6 +248,8 @@ export class NostrRelay {
         ),
       );
       return {
+        subscriptionId,
+        filters,
         eventCount: 0,
       };
     }
@@ -271,6 +279,8 @@ export class NostrRelay {
     });
 
     return {
+      subscriptionId,
+      filters,
       eventCount,
     };
   }
@@ -283,7 +293,10 @@ export class NostrRelay {
       this.getClientContext(client),
       subscriptionId,
     );
-    return { success: true };
+    return {
+      subscriptionId,
+      success: true,
+    };
   }
 
   handleAuthMessage(
@@ -310,7 +323,7 @@ export class NostrRelay {
 
     ctx.pubkey = EventUtils.getAuthor(signedEvent);
     ctx.sendMessage(createOutgoingOkMessage(signedEvent.id, true));
-    return { success: true };
+    return { success: true, pubkey: ctx.pubkey };
   }
 
   isAuthorized(client: Client): boolean {
