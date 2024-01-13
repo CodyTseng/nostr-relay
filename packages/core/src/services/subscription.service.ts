@@ -1,73 +1,64 @@
 import {
   BroadcastService,
   Client,
-  ClientReadyState,
+  ClientContext,
   ConsoleLoggerService,
   Event,
   EventUtils,
   Filter,
   Logger,
 } from '@nostr-relay/common';
-import { createOutgoingEventMessage, sendMessage } from '../utils';
-import { ClientMetadataService } from './client-metadata.service';
+import { createOutgoingEventMessage } from '../utils';
 
 type SubscriptionServiceOptions = {
   logger?: Logger;
 };
 
 export class SubscriptionService {
-  private readonly clientMetadataService: ClientMetadataService;
   private readonly logger: Logger;
+  private readonly clientsMap: Map<Client, ClientContext>;
 
   constructor(
     broadcastService: BroadcastService,
-    clientMetadataService: ClientMetadataService,
+    clientsMap: Map<Client, ClientContext>,
     options: SubscriptionServiceOptions = {},
   ) {
-    this.clientMetadataService = clientMetadataService;
+    this.clientsMap = clientsMap;
     this.logger = options.logger ?? new ConsoleLoggerService();
 
     broadcastService.setListener(event => this.eventListener(event));
   }
 
-  subscribe(client: Client, subscriptionId: string, filters: Filter[]): void {
+  subscribe(
+    ctx: ClientContext,
+    subscriptionId: string,
+    filters: Filter[],
+  ): void {
     // Filter with search is not currently supported.
     const nonSearchFilters = filters.filter(
       filter => filter.search === undefined,
     );
-    let subscriptions = this.clientMetadataService.getSubscriptions(client);
-    if (!subscriptions) {
-      subscriptions = this.clientMetadataService.connect(client).subscriptions;
-    }
-    subscriptions.set(subscriptionId, nonSearchFilters);
+    ctx.subscriptions.set(subscriptionId, nonSearchFilters);
   }
 
-  unsubscribe(client: Client, subscriptionId: string): boolean {
-    const subscriptions = this.clientMetadataService.getSubscriptions(client);
-    if (!subscriptions) {
-      return false;
-    }
-    return subscriptions.delete(subscriptionId);
+  unsubscribe(ctx: ClientContext, subscriptionId: string): boolean {
+    return ctx.subscriptions.delete(subscriptionId);
   }
 
   eventListener(event: Event): void {
     try {
-      this.clientMetadataService.forEach(({ subscriptions }, client) => {
-        if (client.readyState !== ClientReadyState.OPEN) {
-          return;
-        }
-        subscriptions.forEach((filters, subscriptionId) => {
+      for (const ctx of this.clientsMap.values()) {
+        if (!ctx.isOpen) return;
+
+        ctx.subscriptions.forEach((filters, subscriptionId) => {
           if (
             !filters.some(filter => EventUtils.isMatchingFilter(event, filter))
           ) {
             return;
           }
-          sendMessage(
-            client,
-            createOutgoingEventMessage(subscriptionId, event),
-          );
+          ctx.sendMessage(createOutgoingEventMessage(subscriptionId, event));
         });
-      });
+      }
     } catch (error) {
       this.logger.error(`${SubscriptionService.name}.eventListener`, error);
     }

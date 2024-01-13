@@ -1,6 +1,4 @@
 import {
-  Client,
-  ClientReadyState,
   Event,
   MessageType,
   OutgoingAuthMessage,
@@ -10,15 +8,6 @@ import {
   OutgoingOkMessage,
   SubscriptionId,
 } from '@nostr-relay/common';
-
-export function sendMessage(
-  client: Client,
-  message: Array<unknown> | undefined | null | void,
-): void {
-  if (message && client.readyState === ClientReadyState.OPEN) {
-    client.send(JSON.stringify(message));
-  }
-}
 
 export function createOutgoingOkMessage(
   eventId: string,

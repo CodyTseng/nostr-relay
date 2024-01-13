@@ -1,28 +1,29 @@
 import {
   BroadcastService,
   Client,
+  ClientContext,
   ClientReadyState,
   Event,
   EventUtils,
   Filter,
   MessageType,
 } from '../../../common';
-import { ClientMetadataService } from '../../src/services/client-metadata.service';
 import { LocalBroadcastService } from '../../src/services/local-broadcast.service';
 import { SubscriptionService } from '../../src/services/subscription.service';
 
 describe('SubscriptionService', () => {
   let subscriptionService: SubscriptionService;
   let broadcastService: BroadcastService;
-  let clientMetadataService: ClientMetadataService;
   let client: Client;
+  let ctx: ClientContext;
+  let clientsMap: Map<Client, ClientContext>;
 
   beforeEach(() => {
+    clientsMap = new Map<Client, ClientContext>();
     broadcastService = new LocalBroadcastService();
-    clientMetadataService = new ClientMetadataService();
     subscriptionService = new SubscriptionService(
       broadcastService,
-      clientMetadataService,
+      clientsMap,
       {
         logger: {
           error: jest.fn(),
@@ -33,6 +34,8 @@ describe('SubscriptionService', () => {
       readyState: ClientReadyState.OPEN,
       send: jest.fn(),
     };
+    ctx = new ClientContext(client);
+    clientsMap.set(client, ctx);
   });
 
   describe('subscribe', () => {
@@ -40,13 +43,9 @@ describe('SubscriptionService', () => {
       const subscriptionId = 'subscriptionId';
       const filters = [{}] as Filter[];
 
-      subscriptionService.subscribe(client, subscriptionId, filters);
+      subscriptionService.subscribe(ctx, subscriptionId, filters);
 
-      expect(
-        subscriptionService['clientMetadataService']
-          .getSubscriptions(client)
-          ?.get(subscriptionId),
-      ).toEqual(filters);
+      expect(ctx.subscriptions.get(subscriptionId)).toEqual(filters);
     });
 
     it('should add subscription to existing client', () => {
@@ -55,19 +54,11 @@ describe('SubscriptionService', () => {
       const filtersA = [{}] as Filter[];
       const filtersB = [{}, {}] as Filter[];
 
-      subscriptionService.subscribe(client, subscriptionIdA, filtersA);
-      subscriptionService.subscribe(client, subscriptionIdB, filtersB);
+      subscriptionService.subscribe(ctx, subscriptionIdA, filtersA);
+      subscriptionService.subscribe(ctx, subscriptionIdB, filtersB);
 
-      expect(
-        subscriptionService['clientMetadataService']
-          .getSubscriptions(client)
-          ?.get(subscriptionIdA),
-      ).toEqual(filtersA);
-      expect(
-        subscriptionService['clientMetadataService']
-          .getSubscriptions(client)
-          ?.get(subscriptionIdB),
-      ).toEqual(filtersB);
+      expect(ctx.subscriptions.get(subscriptionIdA)).toEqual(filtersA);
+      expect(ctx.subscriptions.get(subscriptionIdB)).toEqual(filtersB);
     });
   });
 
@@ -78,31 +69,21 @@ describe('SubscriptionService', () => {
       const filtersA = [{}] as Filter[];
       const filtersB = [{}, {}] as Filter[];
 
-      subscriptionService.subscribe(client, subscriptionIdA, filtersA);
-      subscriptionService.subscribe(client, subscriptionIdB, filtersB);
+      subscriptionService.subscribe(ctx, subscriptionIdA, filtersA);
+      subscriptionService.subscribe(ctx, subscriptionIdB, filtersB);
 
       expect(
-        subscriptionService.unsubscribe(client, subscriptionIdA),
+        subscriptionService.unsubscribe(ctx, subscriptionIdA),
       ).toBeTruthy();
 
-      expect(
-        subscriptionService['clientMetadataService']
-          .getSubscriptions(client)
-          ?.get(subscriptionIdA),
-      ).toBeUndefined();
-      expect(
-        subscriptionService['clientMetadataService']
-          .getSubscriptions(client)
-          ?.get(subscriptionIdB),
-      ).toEqual(filtersB);
+      expect(ctx.subscriptions.get(subscriptionIdA)).toBeUndefined();
+      expect(ctx.subscriptions.get(subscriptionIdB)).toEqual(filtersB);
     });
 
     it('should return false if client is not found', () => {
       const subscriptionId = 'subscriptionId';
 
-      expect(
-        subscriptionService.unsubscribe(client, subscriptionId),
-      ).toBeFalsy();
+      expect(subscriptionService.unsubscribe(ctx, subscriptionId)).toBeFalsy();
     });
   });
 
@@ -116,7 +97,7 @@ describe('SubscriptionService', () => {
 
       jest.spyOn(EventUtils, 'isMatchingFilter').mockReturnValue(true);
 
-      subscriptionService.subscribe(client, subscriptionId, filters);
+      subscriptionService.subscribe(ctx, subscriptionId, filters);
       broadcastService.broadcast(event);
 
       await new Promise(resolve => process.nextTick(resolve));
@@ -135,7 +116,7 @@ describe('SubscriptionService', () => {
 
       jest.spyOn(EventUtils, 'isMatchingFilter').mockReturnValue(false);
 
-      subscriptionService.subscribe(client, subscriptionId, filters);
+      subscriptionService.subscribe(ctx, subscriptionId, filters);
       broadcastService.broadcast(event);
 
       await new Promise(resolve => process.nextTick(resolve));
@@ -153,7 +134,7 @@ describe('SubscriptionService', () => {
       jest.spyOn(EventUtils, 'isMatchingFilter').mockReturnValue(true);
 
       client.readyState = ClientReadyState.CLOSED;
-      subscriptionService.subscribe(client, subscriptionId, filters);
+      subscriptionService.subscribe(ctx, subscriptionId, filters);
       broadcastService.broadcast(event);
 
       await new Promise(resolve => process.nextTick(resolve));
@@ -172,7 +153,7 @@ describe('SubscriptionService', () => {
         throw new Error('error');
       });
 
-      subscriptionService.subscribe(client, subscriptionId, filters);
+      subscriptionService.subscribe(ctx, subscriptionId, filters);
       broadcastService.broadcast(event);
 
       await new Promise(resolve => process.nextTick(resolve));

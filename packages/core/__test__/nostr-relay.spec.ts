@@ -1,6 +1,7 @@
 import { from } from 'rxjs';
 import {
   Client,
+  ClientContext,
   ClientReadyState,
   Event,
   EventRepository,
@@ -50,10 +51,10 @@ describe('NostrRelay', () => {
     it('should add client to clientMap', () => {
       nostrRelay.handleConnection(client);
 
-      const metadata = nostrRelay['clientMetadataService'].getMetadata(client);
-      expect(metadata).toBeDefined();
+      const ctx = nostrRelay['clientContexts'].get(client);
+      expect(ctx).toBeDefined();
 
-      const { id } = metadata!;
+      const { id } = ctx!;
       expect(id).toStrictEqual(expect.any(String));
       expect(client.send).toHaveBeenCalledWith(
         JSON.stringify([MessageType.AUTH, id]),
@@ -66,9 +67,7 @@ describe('NostrRelay', () => {
       nostrRelay.handleConnection(client);
       nostrRelay.handleDisconnect(client);
 
-      expect(
-        nostrRelay['clientMetadataService'].getMetadata(client),
-      ).toBeUndefined();
+      expect(nostrRelay['clientContexts'].get(client)).toBeUndefined();
     });
   });
 
@@ -162,6 +161,12 @@ describe('NostrRelay', () => {
   });
 
   describe('req', () => {
+    let ctx: ClientContext;
+
+    beforeEach(() => {
+      ctx = nostrRelay['getClientContext'](client);
+    });
+
     it('should handle req successfully', async () => {
       const subscriptionId: SubscriptionId = 'subscriptionId';
       const filters: Filter[] = [{ kinds: [0, 1] }, { ids: ['a'] }];
@@ -180,11 +185,7 @@ describe('NostrRelay', () => {
 
       await nostrRelay.handleReqMessage(client, subscriptionId, filters);
 
-      expect(mockSubscribe).toHaveBeenCalledWith(
-        client,
-        subscriptionId,
-        filters,
-      );
+      expect(mockSubscribe).toHaveBeenCalledWith(ctx, subscriptionId, filters);
       expect(mockFind).toHaveBeenCalledWith(filters);
       expect(client.send).toHaveBeenNthCalledWith(
         1,
@@ -218,11 +219,10 @@ describe('NostrRelay', () => {
       const subscriptionId: SubscriptionId = 'subscriptionId';
       const pubkey = 'pubkey';
       const filters: Filter[] = [{ kinds: [4] }];
-      const metadata = nostrRelay['clientMetadataService'].connect(client);
-      metadata.pubkey = pubkey;
       const events = [
         { id: 'a', kind: 4, pubkey, tags: [] as string[][] },
       ] as Event[];
+      ctx.pubkey = pubkey;
 
       const mockSubscribe = jest
         .spyOn(nostrRelay['subscriptionService'], 'subscribe')
@@ -233,11 +233,7 @@ describe('NostrRelay', () => {
 
       await nostrRelay.handleReqMessage(client, subscriptionId, filters);
 
-      expect(mockSubscribe).toHaveBeenCalledWith(
-        client,
-        subscriptionId,
-        filters,
-      );
+      expect(mockSubscribe).toHaveBeenCalledWith(ctx, subscriptionId, filters);
       expect(mockFind).toHaveBeenCalledWith(filters);
       expect(client.send).toHaveBeenNthCalledWith(
         1,
@@ -270,6 +266,7 @@ describe('NostrRelay', () => {
       const subscriptionId: SubscriptionId = 'subscriptionId';
       const filters: Filter[] = [{ kinds: [4] }];
       const events = [{ id: 'a', kind: 4 }] as Event[];
+      const ctx = nostrRelayWithoutDomain['getClientContext'](client);
 
       const mockSubscribe = jest
         .spyOn(nostrRelayWithoutDomain['subscriptionService'], 'subscribe')
@@ -284,11 +281,7 @@ describe('NostrRelay', () => {
         filters,
       );
 
-      expect(mockSubscribe).toHaveBeenCalledWith(
-        client,
-        subscriptionId,
-        filters,
-      );
+      expect(mockSubscribe).toHaveBeenCalledWith(ctx, subscriptionId, filters);
       expect(mockFind).toHaveBeenCalledWith(filters);
       expect(client.send).toHaveBeenNthCalledWith(
         1,
@@ -304,14 +297,14 @@ describe('NostrRelay', () => {
   describe('close', () => {
     it('should handle close successfully', () => {
       const subscriptionId: SubscriptionId = 'subscriptionId';
-
       const mockUnsubscribe = jest
         .spyOn(nostrRelay['subscriptionService'], 'unsubscribe')
         .mockReturnValue(true);
+      const ctx = nostrRelay['getClientContext'](client);
 
       nostrRelay.handleCloseMessage(client, subscriptionId);
 
-      expect(mockUnsubscribe).toHaveBeenCalledWith(client, subscriptionId);
+      expect(mockUnsubscribe).toHaveBeenCalledWith(ctx, subscriptionId);
     });
   });
 
@@ -325,12 +318,11 @@ describe('NostrRelay', () => {
 
       nostrRelay.handleConnection(client);
       nostrRelay.handleAuthMessage(client, signedEvent);
-      const metadata = nostrRelay['clientMetadataService'].getMetadata(client);
 
       expect(client.send).toHaveBeenCalledWith(
         JSON.stringify([MessageType.OK, signedEvent.id, true, '']),
       );
-      expect(metadata?.pubkey).toBe(pubkey);
+      expect(nostrRelay['clientContexts'].get(client)?.pubkey).toBe(pubkey);
     });
 
     it('should return failed msg if signed event is invalid', async () => {
@@ -343,14 +335,6 @@ describe('NostrRelay', () => {
 
       expect(client.send).toHaveBeenCalledWith(
         JSON.stringify([MessageType.OK, signedEvent.id, false, 'invalid']),
-      );
-    });
-
-    it('should throw error if client metadata not found', async () => {
-      const signedEvent = { id: 'eventId' } as Event;
-
-      expect(() => nostrRelay.handleAuthMessage(client, signedEvent)).toThrow(
-        'client metadata not found, please call handleConnection first',
       );
     });
 
@@ -440,8 +424,8 @@ describe('NostrRelay', () => {
     });
 
     it('should return true if client is authenticated', () => {
-      const metadata = nostrRelay['clientMetadataService'].connect(client);
-      metadata.pubkey = 'pubkey';
+      nostrRelay.handleConnection(client);
+      nostrRelay['clientContexts'].get(client)!.pubkey = 'pubkey';
 
       expect(nostrRelay.isAuthorized(client)).toBeTruthy();
     });

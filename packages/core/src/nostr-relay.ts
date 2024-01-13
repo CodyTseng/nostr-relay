@@ -1,6 +1,7 @@
 import {
   BroadcastService,
   Client,
+  ClientContext,
   Event,
   EventId,
   EventRepository,
@@ -8,7 +9,6 @@ import {
   Filter,
   FilterUtils,
   IncomingMessage,
-  InternalError,
   Logger,
   MessageType,
   NostrRelayPlugin,
@@ -16,7 +16,6 @@ import {
   SubscriptionId,
 } from '@nostr-relay/common';
 import { endWith, filter, map } from 'rxjs';
-import { ClientMetadataService } from './services/client-metadata.service';
 import { EventService } from './services/event.service';
 import { LocalBroadcastService } from './services/local-broadcast.service';
 import { PluginManagerService } from './services/plugin-manager.service';
@@ -28,7 +27,6 @@ import {
   createOutgoingEventMessage,
   createOutgoingNoticeMessage,
   createOutgoingOkMessage,
-  sendMessage,
 } from './utils';
 
 type NostrRelayOptions = {
@@ -44,32 +42,30 @@ type NostrRelayOptions = {
 };
 
 export class NostrRelay {
+  private readonly options: NostrRelayOptions;
   private readonly eventService: EventService;
   private readonly subscriptionService: SubscriptionService;
   private readonly eventHandlingLazyCache:
     | LazyCache<EventId, Promise<OutgoingMessage | void>>
     | undefined;
   private readonly domain?: string;
-  private readonly clientMetadataService: ClientMetadataService;
   private readonly pluginManagerService: PluginManagerService;
+
+  private readonly clientContexts = new Map<Client, ClientContext>();
 
   constructor(
     eventRepository: EventRepository,
     options: NostrRelayOptions = {},
   ) {
-    // if domain is not set, it means that NIP-42 is not enabled
-    this.domain = options.domain;
+    this.options = options;
 
     const broadcastService =
       options.broadcastService ?? new LocalBroadcastService();
 
     this.pluginManagerService = new PluginManagerService();
-    this.clientMetadataService = new ClientMetadataService({
-      maxSubscriptionsPerClient: options.maxSubscriptionsPerClient,
-    });
     this.subscriptionService = new SubscriptionService(
       broadcastService,
-      this.clientMetadataService,
+      this.clientContexts,
       {
         logger: options.logger,
       },
@@ -93,6 +89,9 @@ export class NostrRelay {
         ttl: options.eventHandlingResultCacheTtl,
       });
     }
+
+    // if domain is not set, it means that NIP-42 is not enabled
+    this.domain = options.domain;
   }
 
   register(plugin: NostrRelayPlugin): NostrRelay {
@@ -101,14 +100,14 @@ export class NostrRelay {
   }
 
   handleConnection(client: Client): void {
-    const { id } = this.clientMetadataService.connect(client);
+    const ctx = this.getClientContext(client);
     if (this.domain) {
-      sendMessage(client, createOutgoingAuthMessage(id));
+      ctx.sendMessage(createOutgoingAuthMessage(ctx.id));
     }
   }
 
   handleDisconnect(client: Client): void {
-    this.clientMetadataService.disconnect(client);
+    this.clientContexts.delete(client);
   }
 
   async handleMessage(client: Client, message: IncomingMessage): Promise<void> {
@@ -128,13 +127,14 @@ export class NostrRelay {
       const [, signedEvent] = message;
       return this.handleAuthMessage(client, signedEvent);
     }
-    sendMessage(
-      client,
+    const ctx = this.getClientContext(client);
+    ctx.sendMessage(
       createOutgoingNoticeMessage('invalid: unknown message type'),
     );
   }
 
   async handleEventMessage(client: Client, event: Event): Promise<void> {
+    const ctx = this.getClientContext(client);
     const callback = async (): Promise<OutgoingMessage | undefined> => {
       const canHandle =
         await this.pluginManagerService.callBeforeEventHandleHooks(event);
@@ -161,7 +161,7 @@ export class NostrRelay {
       ? await this.eventHandlingLazyCache.get(event.id, callback)
       : await callback();
 
-    return sendMessage(client, outgoingMessage);
+    return ctx.sendMessage(outgoingMessage);
   }
 
   async handleReqMessage(
@@ -169,23 +169,22 @@ export class NostrRelay {
     subscriptionId: SubscriptionId,
     filters: Filter[],
   ): Promise<void> {
-    const clientPubkey = this.clientMetadataService.getPubkey(client);
+    const ctx = this.getClientContext(client);
     if (
       this.domain &&
       filters.some(filter =>
         FilterUtils.hasEncryptedDirectMessageKind(filter),
       ) &&
-      !clientPubkey
+      !ctx.pubkey
     ) {
-      return sendMessage(
-        client,
+      return ctx.sendMessage(
         createOutgoingNoticeMessage(
           "restricted: we can't serve DMs to unauthenticated users, does your client implement NIP-42?",
         ),
       );
     }
 
-    this.subscriptionService.subscribe(client, subscriptionId, filters);
+    this.subscriptionService.subscribe(ctx, subscriptionId, filters);
 
     await new Promise<void>((resolve, reject) => {
       const event$ = this.eventService.find(filters);
@@ -193,13 +192,13 @@ export class NostrRelay {
         .pipe(
           filter(
             event =>
-              !this.domain || EventUtils.checkPermission(event, clientPubkey),
+              !this.domain || EventUtils.checkPermission(event, ctx.pubkey),
           ),
           map(event => createOutgoingEventMessage(subscriptionId, event)),
           endWith(createOutgoingEoseMessage(subscriptionId)),
         )
         .subscribe({
-          next: message => sendMessage(client, message),
+          next: message => ctx.sendMessage(message),
           error: error => reject(error),
           complete: () => resolve(),
         });
@@ -207,38 +206,45 @@ export class NostrRelay {
   }
 
   handleCloseMessage(client: Client, subscriptionId: SubscriptionId): void {
-    this.subscriptionService.unsubscribe(client, subscriptionId);
+    this.subscriptionService.unsubscribe(
+      this.getClientContext(client),
+      subscriptionId,
+    );
   }
 
   handleAuthMessage(client: Client, signedEvent: Event): void {
+    const ctx = this.getClientContext(client);
     if (!this.domain) {
-      return sendMessage(client, createOutgoingOkMessage(signedEvent.id, true));
-    }
-
-    const clientMetadata = this.clientMetadataService.getMetadata(client);
-    if (!clientMetadata) {
-      throw new InternalError(
-        'client metadata not found, please call handleConnection first',
-      );
+      return ctx.sendMessage(createOutgoingOkMessage(signedEvent.id, true));
     }
 
     const validateErrorMsg = EventUtils.isSignedEventValid(
       signedEvent,
-      clientMetadata.id,
+      ctx.id,
       this.domain,
     );
     if (validateErrorMsg) {
-      return sendMessage(
-        client,
+      return ctx.sendMessage(
         createOutgoingOkMessage(signedEvent.id, false, validateErrorMsg),
       );
     }
 
-    clientMetadata.pubkey = EventUtils.getAuthor(signedEvent);
-    return sendMessage(client, createOutgoingOkMessage(signedEvent.id, true));
+    ctx.pubkey = EventUtils.getAuthor(signedEvent);
+    return ctx.sendMessage(createOutgoingOkMessage(signedEvent.id, true));
   }
 
   isAuthorized(client: Client): boolean {
-    return this.domain ? !!this.clientMetadataService.getPubkey(client) : true;
+    return this.domain ? !!this.getClientContext(client).pubkey : true;
+  }
+
+  private getClientContext(client: Client): ClientContext {
+    const ctx = this.clientContexts.get(client);
+    if (ctx) return ctx;
+
+    const newCtx = new ClientContext(client, {
+      maxSubscriptionsPerClient: this.options.maxSubscriptionsPerClient,
+    });
+    this.clientContexts.set(client, newCtx);
+    return newCtx;
   }
 }
