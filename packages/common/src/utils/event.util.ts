@@ -1,9 +1,9 @@
-import { isNil } from 'lodash';
 import { EventKind, EventType, TagName } from '../enums';
 import { Event, Filter, Tag } from '../interfaces';
-import { schnorrVerify, sha256 } from './crypto';
-import { countPowDifficulty } from './proof-of-work';
-import { getTimestampInSeconds } from './time';
+import { schnorrVerify, sha256 } from './crypto.util';
+import { countPowDifficulty } from './proof-of-work.util';
+import { isNil } from './shared.util';
+import { getTimestampInSeconds } from './time.util';
 
 export class EventUtils {
   static getType({ kind }: Event): EventType {
