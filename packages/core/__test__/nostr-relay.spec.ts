@@ -105,9 +105,34 @@ describe('NostrRelay', () => {
     });
 
     it('should cache handle result', async () => {
-      const nostrRelayWithCache = new NostrRelay({} as EventRepository, {
+      const event = { id: 'eventId' } as Event;
+      const outgoingMessage: OutgoingOkMessage = [
+        MessageType.OK,
+        event.id,
+        true,
+        '',
+      ];
+      const outgoingMessageStr = JSON.stringify(outgoingMessage);
+
+      const mockHandleEvent = jest
+        .spyOn(nostrRelay['eventService'], 'handleEvent')
+        .mockResolvedValue({ success: true });
+
+      await Promise.all([
+        nostrRelay.handleEventMessage(client, event),
+        nostrRelay.handleEventMessage(client, event),
+      ]);
+
+      expect(mockHandleEvent).toHaveBeenCalledTimes(1);
+      expect(client.send).toHaveBeenCalledTimes(2);
+      expect(client.send).toHaveBeenNthCalledWith(1, outgoingMessageStr);
+      expect(client.send).toHaveBeenNthCalledWith(2, outgoingMessageStr);
+    });
+
+    it('should not cache handle result', async () => {
+      const nostrRelayWithoutCache = new NostrRelay({} as EventRepository, {
         domain: 'test',
-        eventHandlingResultCacheTtl: 1000,
+        eventHandlingResultCacheTtl: 0,
       });
       const event = { id: 'eventId' } as Event;
       const outgoingMessage: OutgoingOkMessage = [
@@ -119,15 +144,15 @@ describe('NostrRelay', () => {
       const outgoingMessageStr = JSON.stringify(outgoingMessage);
 
       const mockHandleEvent = jest
-        .spyOn(nostrRelayWithCache['eventService'], 'handleEvent')
+        .spyOn(nostrRelayWithoutCache['eventService'], 'handleEvent')
         .mockResolvedValue({ success: true });
 
       await Promise.all([
-        nostrRelayWithCache.handleEventMessage(client, event),
-        nostrRelayWithCache.handleEventMessage(client, event),
+        nostrRelayWithoutCache.handleEventMessage(client, event),
+        nostrRelayWithoutCache.handleEventMessage(client, event),
       ]);
 
-      expect(mockHandleEvent).toHaveBeenCalledTimes(1);
+      expect(mockHandleEvent).toHaveBeenCalledTimes(2);
       expect(client.send).toHaveBeenCalledTimes(2);
       expect(client.send).toHaveBeenNthCalledWith(1, outgoingMessageStr);
       expect(client.send).toHaveBeenNthCalledWith(2, outgoingMessageStr);

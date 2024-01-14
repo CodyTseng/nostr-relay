@@ -112,7 +112,9 @@ export class NostrRelay {
       },
     );
 
-    if (options?.eventHandlingResultCacheTtl) {
+    const eventHandlingResultCacheTtl =
+      options.eventHandlingResultCacheTtl ?? 600000;
+    if (eventHandlingResultCacheTtl > 0) {
       this.eventHandlingLazyCache = new LazyCache({
         max: 100 * 1024,
         ttl: options.eventHandlingResultCacheTtl,

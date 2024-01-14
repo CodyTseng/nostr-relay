@@ -49,7 +49,7 @@ export class EventService {
     this.createdAtLowerLimit = options.createdAtLowerLimit;
     this.minPowDifficulty = options.minPowDifficulty;
 
-    const filterResultCacheTtl = options.filterResultCacheTtl ?? 10;
+    const filterResultCacheTtl = options.filterResultCacheTtl ?? 1000;
     if (filterResultCacheTtl > 0) {
       this.findLazyCache = new LazyCache({
         max: 1000,
