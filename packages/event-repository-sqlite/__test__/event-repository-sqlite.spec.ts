@@ -229,11 +229,12 @@ describe('EventRepositorySqlite', () => {
       expect(result).toEqual([TEXT_NOTE_EVENT]);
     });
 
-    it('should filter by dTagValue', async () => {
+    it('should filter by ids and tags', async () => {
       const result = await eventRepository.find({
-        '#d': ['test'],
+        ids: [TEXT_NOTE_EVENT.id],
+        '#t': ['test'],
       });
-      expect(result).toEqual([LONG_FORM_CONTENT_EVENT]);
+      expect(result).toEqual([TEXT_NOTE_EVENT]);
     });
 
     it('should return empty array directly if limit is 0', async () => {

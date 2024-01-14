@@ -108,11 +108,10 @@ export class EventRepositorySqlite extends EventRepository {
 
     if (limit === 0) return [];
 
-    if (this.shouldQueryFromGenericTags(filter)) {
-      return this.findFromGenericTags(filter);
+    const genericTags = this.extractGenericTagsFrom(filter);
+    if (!filter.ids?.length && genericTags.length) {
+      return this.findFromGenericTags(filter, genericTags);
     }
-
-    const genericTags = this.extractGenericTagsCollectionFrom(filter);
 
     const innerJoinClauses: string[] = [];
     const whereClauses: string[] = [];
@@ -169,8 +168,10 @@ export class EventRepositorySqlite extends EventRepository {
     return rows.map(this.toEvent);
   }
 
-  private async findFromGenericTags(filter: Filter): Promise<Event[]> {
-    const genericTags = this.extractGenericTagsCollectionFrom(filter);
+  private async findFromGenericTags(
+    filter: Filter,
+    genericTags: string[][],
+  ): Promise<Event[]> {
     const { authors, kinds, since, until, limit = 1000 } = filter;
 
     const innerJoinClauses: string[] = [];
@@ -258,20 +259,14 @@ export class EventRepositorySqlite extends EventRepository {
     return [...genericTagSet];
   }
 
-  private shouldQueryFromGenericTags(filter: Filter): boolean {
-    return (
-      !!this.extractGenericTagsCollectionFrom(filter).length &&
-      !filter.ids?.length
-    );
-  }
-
-  private extractGenericTagsCollectionFrom(filter: Filter): string[][] {
+  private extractGenericTagsFrom(filter: Filter): string[][] {
     return Object.keys(filter)
       .filter(key => key.startsWith('#'))
       .map(key => {
         const tagName = key[1];
         return filter[key].map((v: string) => this.toGenericTag(tagName, v));
-      });
+      })
+      .sort((a, b) => a.length - b.length);
   }
 
   private migrate(): {
