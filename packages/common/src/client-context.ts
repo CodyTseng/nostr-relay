@@ -5,7 +5,7 @@ import { Client } from './interfaces/client.interface';
 import { Filter } from './interfaces/filter.interface';
 import { OutgoingMessage } from './interfaces/message.interface';
 
-type ClientContextOptions = {
+export type ClientContextOptions = {
   maxSubscriptionsPerClient?: number;
 };
 
