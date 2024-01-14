@@ -42,25 +42,20 @@ type NostrRelayOptions = {
 };
 
 type HandleReqMessageResult = {
-  subscriptionId: SubscriptionId;
-  filters: Filter[];
   eventCount: number;
 };
 
 type HandleEventMessageResult = {
-  eventId: EventId;
   success: boolean;
   message?: string;
 };
 
 type HandleCloseMessageResult = {
-  subscriptionId: SubscriptionId;
   success: boolean;
 };
 
 type HandleAuthMessageResult = {
   success: boolean;
-  pubkey?: string;
 };
 
 type HandleMessageResult =
@@ -225,7 +220,6 @@ export class NostrRelay {
     }
 
     return {
-      eventId: event.id,
       success: handleResult.success,
       message: handleResult.message,
     };
@@ -249,11 +243,7 @@ export class NostrRelay {
           "restricted: we can't serve DMs to unauthenticated users, does your client implement NIP-42?",
         ),
       );
-      return {
-        subscriptionId,
-        filters,
-        eventCount: 0,
-      };
+      return { eventCount: 0 };
     }
 
     this.subscriptionService.subscribe(ctx, subscriptionId, filters);
@@ -280,11 +270,7 @@ export class NostrRelay {
         });
     });
 
-    return {
-      subscriptionId,
-      filters,
-      eventCount,
-    };
+    return { eventCount };
   }
 
   handleCloseMessage(
@@ -295,10 +281,7 @@ export class NostrRelay {
       this.getClientContext(client),
       subscriptionId,
     );
-    return {
-      subscriptionId,
-      success: true,
-    };
+    return { success: true };
   }
 
   handleAuthMessage(
@@ -325,7 +308,7 @@ export class NostrRelay {
 
     ctx.pubkey = EventUtils.getAuthor(signedEvent);
     ctx.sendMessage(createOutgoingOkMessage(signedEvent.id, true));
-    return { success: true, pubkey: ctx.pubkey };
+    return { success: true };
   }
 
   isAuthorized(client: Client): boolean {
