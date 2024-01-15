@@ -1,7 +1,19 @@
 export enum EventType {
+  /**
+   * Regular event
+   */
   REGULAR = 'REGULAR',
+  /**
+   * Replaceable event
+   */
   REPLACEABLE = 'REPLACEABLE',
+  /**
+   * Ephemeral event
+   */
   EPHEMERAL = 'EPHEMERAL',
+  /**
+   * Parameterized replaceable event
+   */
   PARAMETERIZED_REPLACEABLE = 'PARAMETERIZED_REPLACEABLE',
 }
 
