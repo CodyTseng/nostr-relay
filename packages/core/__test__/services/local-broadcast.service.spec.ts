@@ -11,7 +11,7 @@ describe('LocalBroadcastService', () => {
   });
 
   it('should broadcast event', async () => {
-    localBroadcastService.setListener(listener);
+    localBroadcastService.listener = listener;
 
     const event = {} as Event;
     localBroadcastService.broadcast(event);
