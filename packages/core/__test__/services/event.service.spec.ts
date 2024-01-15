@@ -28,8 +28,8 @@ describe('eventService', () => {
       findOne: jest.fn(),
     };
     broadcastService = {
+      listener: undefined,
       broadcast: jest.fn(),
-      setListener: jest.fn(),
     };
     pluginManagerService = new PluginManagerService();
     eventService = new EventService(

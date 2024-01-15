@@ -26,7 +26,7 @@ export class SubscriptionService {
     this.clientsMap = clientsMap;
     this.logger = options.logger ?? new ConsoleLoggerService();
 
-    broadcastService.setListener(event => this.eventListener(event));
+    broadcastService.listener = event => this.eventListener(event);
   }
 
   subscribe(
