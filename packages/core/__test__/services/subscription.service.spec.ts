@@ -8,7 +8,6 @@ import {
   Filter,
   MessageType,
 } from '../../../common';
-import { LocalBroadcastService } from '../../src/services/local-broadcast.service';
 import { SubscriptionService } from '../../src/services/subscription.service';
 
 describe('SubscriptionService', () => {
@@ -20,16 +19,15 @@ describe('SubscriptionService', () => {
 
   beforeEach(() => {
     clientsMap = new Map<Client, ClientContext>();
-    broadcastService = new LocalBroadcastService();
-    subscriptionService = new SubscriptionService(
+    broadcastService = {
+      broadcast: jest.fn(),
+    };
+    subscriptionService = new SubscriptionService(clientsMap, {
       broadcastService,
-      clientsMap,
-      {
-        logger: {
-          error: jest.fn(),
-        },
+      logger: {
+        error: jest.fn(),
       },
-    );
+    });
     client = {
       readyState: ClientReadyState.OPEN,
       send: jest.fn(),
@@ -87,7 +85,7 @@ describe('SubscriptionService', () => {
     });
   });
 
-  describe('eventListener', () => {
+  describe('broadcast', () => {
     it('should broadcast event to client', async () => {
       const subscriptionId = 'subscriptionId';
       const filters = [{}] as Filter[];
@@ -98,13 +96,12 @@ describe('SubscriptionService', () => {
       jest.spyOn(EventUtils, 'isMatchingFilter').mockReturnValue(true);
 
       subscriptionService.subscribe(ctx, subscriptionId, filters);
-      broadcastService.broadcast(event);
-
-      await new Promise(resolve => process.nextTick(resolve));
+      await subscriptionService.broadcast(event);
 
       expect(client.send).toHaveBeenCalledWith(
         JSON.stringify([MessageType.EVENT, subscriptionId, event]),
       );
+      expect(broadcastService.broadcast).toHaveBeenCalledWith(event);
     });
 
     it('should not broadcast event to client if not matching filter', async () => {
@@ -117,11 +114,10 @@ describe('SubscriptionService', () => {
       jest.spyOn(EventUtils, 'isMatchingFilter').mockReturnValue(false);
 
       subscriptionService.subscribe(ctx, subscriptionId, filters);
-      broadcastService.broadcast(event);
-
-      await new Promise(resolve => process.nextTick(resolve));
+      await subscriptionService.broadcast(event);
 
       expect(client.send).not.toHaveBeenCalled();
+      expect(broadcastService.broadcast).toHaveBeenCalledWith(event);
     });
 
     it('should not broadcast event to client if client is not open', async () => {
@@ -135,11 +131,10 @@ describe('SubscriptionService', () => {
 
       client.readyState = ClientReadyState.CLOSED;
       subscriptionService.subscribe(ctx, subscriptionId, filters);
-      broadcastService.broadcast(event);
-
-      await new Promise(resolve => process.nextTick(resolve));
+      await subscriptionService.broadcast(event);
 
       expect(client.send).not.toHaveBeenCalled();
+      expect(broadcastService.broadcast).toHaveBeenCalledWith(event);
     });
 
     it('should catch error', async () => {
@@ -154,11 +149,10 @@ describe('SubscriptionService', () => {
       });
 
       subscriptionService.subscribe(ctx, subscriptionId, filters);
-      broadcastService.broadcast(event);
-
-      await new Promise(resolve => process.nextTick(resolve));
+      await subscriptionService.broadcast(event);
 
       expect(client.send).not.toHaveBeenCalled();
+      expect(broadcastService.broadcast).not.toHaveBeenCalled();
       expect(subscriptionService['logger'].error).toHaveBeenCalled();
     });
   });

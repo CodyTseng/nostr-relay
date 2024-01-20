@@ -1,19 +1,19 @@
 import {
-  BroadcastService,
+  ClientContext,
   ConsoleLoggerService,
   Event,
+  EventHandleResult,
   EventKind,
   EventRepository,
   EventType,
   EventUtils,
   Filter,
-  EventHandleResult,
   Logger,
-  ClientContext,
 } from '@nostr-relay/common';
 import { EMPTY, Observable, distinct, from, merge, mergeMap } from 'rxjs';
 import { LazyCache } from '../utils';
 import { PluginManagerService } from './plugin-manager.service';
+import { SubscriptionService } from './subscription.service';
 
 type EventServiceOptions = {
   logger?: Logger;
@@ -25,7 +25,7 @@ type EventServiceOptions = {
 
 export class EventService {
   private readonly eventRepository: EventRepository;
-  private readonly broadcastService: BroadcastService;
+  private readonly subscriptionService: SubscriptionService;
   private readonly pluginManagerService: PluginManagerService;
   private readonly logger: Logger;
   private readonly findLazyCache?:
@@ -37,12 +37,12 @@ export class EventService {
 
   constructor(
     eventRepository: EventRepository,
-    broadcastService: BroadcastService,
+    subscriptionService: SubscriptionService,
     pluginManagerService: PluginManagerService,
     options: EventServiceOptions = {},
   ) {
     this.eventRepository = eventRepository;
-    this.broadcastService = broadcastService;
+    this.subscriptionService = subscriptionService;
     this.pluginManagerService = pluginManagerService;
     this.logger = options.logger ?? new ConsoleLoggerService();
     this.createdAtUpperLimit = options.createdAtUpperLimit;
@@ -169,7 +169,7 @@ export class EventService {
       await this.pluginManagerService.callBeforeEventBroadcastHooks(ctx, event);
     if (!hookResult.canContinue) return;
 
-    await this.broadcastService.broadcast(event);
+    await this.subscriptionService.broadcast(event);
 
     await this.pluginManagerService.callAfterEventBroadcastHooks(ctx, event);
   }
