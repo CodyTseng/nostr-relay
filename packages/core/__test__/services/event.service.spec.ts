@@ -1,6 +1,5 @@
 import { from } from 'rxjs';
 import {
-  BroadcastService,
   ClientContext,
   ClientReadyState,
   Event,
@@ -12,11 +11,12 @@ import {
 } from '../../../common';
 import { EventService } from '../../src/services/event.service';
 import { PluginManagerService } from '../../src/services/plugin-manager.service';
+import { SubscriptionService } from '../../src/services/subscription.service';
 
 describe('eventService', () => {
   let eventService: EventService;
   let eventRepository: EventRepository;
-  let broadcastService: BroadcastService;
+  let subscriptionService: SubscriptionService;
   let pluginManagerService: PluginManagerService;
   let ctx: ClientContext;
 
@@ -27,14 +27,12 @@ describe('eventService', () => {
       find: jest.fn(),
       findOne: jest.fn(),
     };
-    broadcastService = {
-      listener: undefined,
-      broadcast: jest.fn(),
-    };
+    subscriptionService = new SubscriptionService(new Map());
+    subscriptionService.broadcast = jest.fn();
     pluginManagerService = new PluginManagerService();
     eventService = new EventService(
       eventRepository,
-      broadcastService,
+      subscriptionService,
       pluginManagerService,
       {
         logger: {
@@ -93,7 +91,7 @@ describe('eventService', () => {
     it('should use cache', async () => {
       const eventServiceWithCache = new EventService(
         eventRepository,
-        broadcastService,
+        subscriptionService,
         pluginManagerService,
       );
       const filters = [{}, {}] as Filter[];
@@ -117,7 +115,7 @@ describe('eventService', () => {
       ).toEqual({ success: true, noReplyNeeded: true });
       expect(eventRepository.findOne).not.toHaveBeenCalled();
       expect(eventRepository.upsert).not.toHaveBeenCalled();
-      expect(broadcastService.broadcast).not.toHaveBeenCalled();
+      expect(subscriptionService.broadcast).not.toHaveBeenCalled();
     });
 
     it('should return duplicate message if event exists', async () => {
@@ -166,7 +164,7 @@ describe('eventService', () => {
       });
       expect(mockBeforeEventBroadcast).toHaveBeenCalledWith(ctx, event);
       expect(mockAfterEventBroadcast).toHaveBeenCalledWith(ctx, event);
-      expect(broadcastService.broadcast).toHaveBeenCalledWith(event);
+      expect(subscriptionService.broadcast).toHaveBeenCalledWith(event);
     });
 
     it('should not broadcast due to plugin prevention', async () => {
@@ -183,7 +181,7 @@ describe('eventService', () => {
         noReplyNeeded: true,
         success: true,
       });
-      expect(broadcastService.broadcast).not.toHaveBeenCalled();
+      expect(subscriptionService.broadcast).not.toHaveBeenCalled();
     });
 
     it('should handle regular event successfully', async () => {
@@ -198,7 +196,7 @@ describe('eventService', () => {
       expect(await eventService.handleEvent(ctx, event)).toEqual({
         success: true,
       });
-      expect(broadcastService.broadcast).toHaveBeenCalledWith(event);
+      expect(subscriptionService.broadcast).toHaveBeenCalledWith(event);
     });
 
     it('should handle regular event successfully with duplicate', async () => {
@@ -214,7 +212,7 @@ describe('eventService', () => {
         success: true,
         message: 'duplicate: the event already exists',
       });
-      expect(broadcastService.broadcast).not.toHaveBeenCalled();
+      expect(subscriptionService.broadcast).not.toHaveBeenCalled();
     });
 
     it('should catch normal Error', async () => {
@@ -230,7 +228,7 @@ describe('eventService', () => {
         success: false,
         message: 'error: test',
       });
-      expect(broadcastService.broadcast).not.toHaveBeenCalled();
+      expect(subscriptionService.broadcast).not.toHaveBeenCalled();
       expect(eventService['logger'].error).toHaveBeenCalled();
     });
 
@@ -245,7 +243,7 @@ describe('eventService', () => {
         success: false,
         message: 'error: unknown',
       });
-      expect(broadcastService.broadcast).not.toHaveBeenCalled();
+      expect(subscriptionService.broadcast).not.toHaveBeenCalled();
       expect(eventService['logger'].error).toHaveBeenCalled();
     });
   });

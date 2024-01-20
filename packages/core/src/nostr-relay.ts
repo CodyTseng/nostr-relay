@@ -17,7 +17,6 @@ import {
 } from '@nostr-relay/common';
 import { endWith, filter, map } from 'rxjs';
 import { EventService } from './services/event.service';
-import { LocalBroadcastService } from './services/local-broadcast.service';
 import { PluginManagerService } from './services/plugin-manager.service';
 import { SubscriptionService } from './services/subscription.service';
 import {
@@ -83,20 +82,14 @@ export class NostrRelay {
   ) {
     this.options = options;
 
-    const broadcastService =
-      options.broadcastService ?? new LocalBroadcastService();
-
     this.pluginManagerService = new PluginManagerService();
-    this.subscriptionService = new SubscriptionService(
-      broadcastService,
-      this.clientContexts,
-      {
-        logger: options.logger,
-      },
-    );
+    this.subscriptionService = new SubscriptionService(this.clientContexts, {
+      broadcastService: options.broadcastService,
+      logger: options.logger,
+    });
     this.eventService = new EventService(
       eventRepository,
-      broadcastService,
+      this.subscriptionService,
       this.pluginManagerService,
       {
         logger: options.logger,
