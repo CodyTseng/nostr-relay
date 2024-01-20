@@ -1,4 +1,9 @@
-import { BroadcastService, Logger, MessageType } from '@nostr-relay/common';
+import {
+  BroadcastService,
+  Event,
+  Logger,
+  MessageType,
+} from '@nostr-relay/common';
 
 /**
  * Options for NostrRelay
@@ -42,9 +47,9 @@ export type NostrRelayOptions = {
  */
 export type HandleReqMessageResult = {
   /**
-   * Number of events sent to the client
+   * The events that match the request
    */
-  eventCount: number;
+  events: Event[];
 };
 
 /**

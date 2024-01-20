@@ -195,8 +195,13 @@ describe('NostrRelay', () => {
         .spyOn(nostrRelay['eventService'], 'find')
         .mockReturnValue(from(events));
 
-      await nostrRelay.handleReqMessage(client, subscriptionId, filters);
+      const result = await nostrRelay.handleReqMessage(
+        client,
+        subscriptionId,
+        filters,
+      );
 
+      expect(result).toEqual({ events: events.slice(0, 2) });
       expect(mockSubscribe).toHaveBeenCalledWith(ctx, subscriptionId, filters);
       expect(mockFind).toHaveBeenCalledWith(filters);
       expect(client.send).toHaveBeenNthCalledWith(
@@ -217,8 +222,13 @@ describe('NostrRelay', () => {
       const subscriptionId: SubscriptionId = 'subscriptionId';
       const filters: Filter[] = [{ kinds: [4] }];
 
-      await nostrRelay.handleReqMessage(client, subscriptionId, filters);
+      const result = await nostrRelay.handleReqMessage(
+        client,
+        subscriptionId,
+        filters,
+      );
 
+      expect(result).toEqual({ events: [] });
       expect(client.send).toHaveBeenCalledWith(
         JSON.stringify([
           MessageType.NOTICE,
@@ -243,8 +253,13 @@ describe('NostrRelay', () => {
         .spyOn(nostrRelay['eventService'], 'find')
         .mockReturnValue(from(events));
 
-      await nostrRelay.handleReqMessage(client, subscriptionId, filters);
+      const result = await nostrRelay.handleReqMessage(
+        client,
+        subscriptionId,
+        filters,
+      );
 
+      expect(result).toEqual({ events });
       expect(mockSubscribe).toHaveBeenCalledWith(ctx, subscriptionId, filters);
       expect(mockFind).toHaveBeenCalledWith(filters);
       expect(client.send).toHaveBeenNthCalledWith(
@@ -287,12 +302,13 @@ describe('NostrRelay', () => {
         .spyOn(nostrRelayWithoutDomain['eventService'], 'find')
         .mockReturnValue(from(events));
 
-      await nostrRelayWithoutDomain.handleReqMessage(
+      const result = await nostrRelayWithoutDomain.handleReqMessage(
         client,
         subscriptionId,
         filters,
       );
 
+      expect(result).toEqual({ events });
       expect(mockSubscribe).toHaveBeenCalledWith(ctx, subscriptionId, filters);
       expect(mockFind).toHaveBeenCalledWith(filters);
       expect(client.send).toHaveBeenNthCalledWith(
