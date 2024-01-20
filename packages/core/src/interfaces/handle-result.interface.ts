@@ -1,9 +1,4 @@
-import {
-  BroadcastService,
-  Event,
-  Logger,
-  MessageType,
-} from '@nostr-relay/common';
+import { Event, Logger, MessageType } from '@nostr-relay/common';
 
 /**
  * Options for NostrRelay
@@ -14,10 +9,6 @@ export type NostrRelayOptions = {
    * More info: https://github.com/nostr-protocol/nips/blob/master/42.md
    */
   domain?: string;
-  /**
-   * BroadcastService to use. `Default: LocalBroadcastService`
-   */
-  broadcastService?: BroadcastService;
   /**
    * Logger to use. `Default: ConsoleLoggerService`
    */

@@ -60,7 +60,6 @@ export class NostrRelay {
 
     this.pluginManagerService = new PluginManagerService();
     this.subscriptionService = new SubscriptionService(this.clientContexts, {
-      broadcastService: options.broadcastService,
       logger: options.logger,
     });
     this.eventService = new EventService(

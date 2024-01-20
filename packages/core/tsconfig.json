@@ -3,5 +3,5 @@
   "compilerOptions": {
     "outDir": "./dist"
   },
-  "include": ["./src", "../common/src/client-context.ts"]
+  "include": ["./src"]
 }

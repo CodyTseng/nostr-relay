@@ -1,5 +1,4 @@
 import {
-  BroadcastService,
   Client,
   ClientContext,
   ConsoleLoggerService,
@@ -12,13 +11,11 @@ import { createOutgoingEventMessage } from '../utils';
 
 type SubscriptionServiceOptions = {
   logger?: Logger;
-  broadcastService?: BroadcastService;
 };
 
 export class SubscriptionService {
   private readonly logger: Logger;
   private readonly clientsMap: Map<Client, ClientContext>;
-  private readonly broadcastService?: BroadcastService;
 
   constructor(
     clientsMap: Map<Client, ClientContext>,
@@ -26,7 +23,6 @@ export class SubscriptionService {
   ) {
     this.clientsMap = clientsMap;
     this.logger = options.logger ?? new ConsoleLoggerService();
-    this.broadcastService = options.broadcastService;
   }
 
   subscribe(
@@ -58,9 +54,6 @@ export class SubscriptionService {
           }
           ctx.sendMessage(createOutgoingEventMessage(subscriptionId, event));
         });
-      }
-      if (this.broadcastService) {
-        await this.broadcastService.broadcast(event);
       }
     } catch (error) {
       this.logger.error(`${SubscriptionService.name}.eventListener`, error);
