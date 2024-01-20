@@ -23,7 +23,7 @@
   },
   "scripts": {
     "build": "tsc -b -v",
-    "clean": "tsc -b --clean"
+    "clean": "rm -rf dist"
   },
   "bugs": {
     "url": "https://github.com/CodyTseng/nostr-relay/issues"
