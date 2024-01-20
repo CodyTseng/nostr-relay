@@ -15,7 +15,7 @@ import {
   NostrRelayPlugin,
   SubscriptionId,
 } from '@nostr-relay/common';
-import { endWith, filter, map } from 'rxjs';
+import { endWith, filter, map, tap } from 'rxjs';
 import { EventService } from './services/event.service';
 import { PluginManagerService } from './services/plugin-manager.service';
 import { SubscriptionService } from './services/subscription.service';
@@ -41,7 +41,7 @@ type NostrRelayOptions = {
 };
 
 type HandleReqMessageResult = {
-  eventCount: number;
+  events: Event[];
 };
 
 type HandleEventMessageResult = {
@@ -224,6 +224,7 @@ export class NostrRelay {
     filters: Filter[],
   ): Promise<HandleReqMessageResult> {
     const ctx = this.getClientContext(client);
+    const events: Event[] = [];
     if (
       this.domain &&
       filters.some(filter =>
@@ -236,13 +237,12 @@ export class NostrRelay {
           "restricted: we can't serve DMs to unauthenticated users, does your client implement NIP-42?",
         ),
       );
-      return { eventCount: 0 };
+      return { events };
     }
 
     this.subscriptionService.subscribe(ctx, subscriptionId, filters);
 
-    const eventCount = await new Promise<number>((resolve, reject) => {
-      let eventCount = 0;
+    await new Promise<void>((resolve, reject) => {
       const event$ = this.eventService.find(filters);
       event$
         .pipe(
@@ -250,20 +250,20 @@ export class NostrRelay {
             event =>
               !this.domain || EventUtils.checkPermission(event, ctx.pubkey),
           ),
+          tap(event => events.push(event)),
           map(event => createOutgoingEventMessage(subscriptionId, event)),
           endWith(createOutgoingEoseMessage(subscriptionId)),
         )
         .subscribe({
           next: message => {
             ctx.sendMessage(message);
-            eventCount++;
           },
           error: error => reject(error),
-          complete: () => resolve(eventCount),
+          complete: () => resolve(),
         });
     });
 
-    return { eventCount };
+    return { events };
   }
 
   handleCloseMessage(
