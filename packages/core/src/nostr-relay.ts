@@ -1,5 +1,4 @@
 import {
-  BroadcastService,
   Client,
   ClientContext,
   Event,
@@ -30,7 +29,6 @@ import {
 
 type NostrRelayOptions = {
   domain?: string;
-  broadcastService?: BroadcastService;
   logger?: Logger;
   createdAtUpperLimit?: number;
   createdAtLowerLimit?: number;
@@ -84,7 +82,6 @@ export class NostrRelay {
 
     this.pluginManagerService = new PluginManagerService();
     this.subscriptionService = new SubscriptionService(this.clientContexts, {
-      broadcastService: options.broadcastService,
       logger: options.logger,
     });
     this.eventService = new EventService(

@@ -1,5 +1,4 @@
 import {
-  BroadcastService,
   Client,
   ClientContext,
   ClientReadyState,
@@ -12,18 +11,13 @@ import { SubscriptionService } from '../../src/services/subscription.service';
 
 describe('SubscriptionService', () => {
   let subscriptionService: SubscriptionService;
-  let broadcastService: BroadcastService;
   let client: Client;
   let ctx: ClientContext;
   let clientsMap: Map<Client, ClientContext>;
 
   beforeEach(() => {
     clientsMap = new Map<Client, ClientContext>();
-    broadcastService = {
-      broadcast: jest.fn(),
-    };
     subscriptionService = new SubscriptionService(clientsMap, {
-      broadcastService,
       logger: {
         error: jest.fn(),
       },
@@ -101,7 +95,6 @@ describe('SubscriptionService', () => {
       expect(client.send).toHaveBeenCalledWith(
         JSON.stringify([MessageType.EVENT, subscriptionId, event]),
       );
-      expect(broadcastService.broadcast).toHaveBeenCalledWith(event);
     });
 
     it('should not broadcast event to client if not matching filter', async () => {
@@ -117,7 +110,6 @@ describe('SubscriptionService', () => {
       await subscriptionService.broadcast(event);
 
       expect(client.send).not.toHaveBeenCalled();
-      expect(broadcastService.broadcast).toHaveBeenCalledWith(event);
     });
 
     it('should not broadcast event to client if client is not open', async () => {
@@ -134,7 +126,6 @@ describe('SubscriptionService', () => {
       await subscriptionService.broadcast(event);
 
       expect(client.send).not.toHaveBeenCalled();
-      expect(broadcastService.broadcast).toHaveBeenCalledWith(event);
     });
 
     it('should catch error', async () => {
@@ -152,7 +143,6 @@ describe('SubscriptionService', () => {
       await subscriptionService.broadcast(event);
 
       expect(client.send).not.toHaveBeenCalled();
-      expect(broadcastService.broadcast).not.toHaveBeenCalled();
       expect(subscriptionService['logger'].error).toHaveBeenCalled();
     });
   });

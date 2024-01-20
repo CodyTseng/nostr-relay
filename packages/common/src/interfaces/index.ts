@@ -1,4 +1,3 @@
-export * from './broadcast-service.interface';
 export * from './client.interface';
 export * from './common.interface';
 export * from './event-respository.interface';
