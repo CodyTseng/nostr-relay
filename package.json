@@ -27,6 +27,12 @@
     "typedoc": "^0.25.7",
     "typescript": "^5.3.2"
   },
+  "optionalDependencies": {
+    "@nx/nx-darwin-arm64": "17.2.4",
+    "@nx/nx-darwin-x64": "17.2.4",
+    "@nx/nx-linux-x64-gnu": "17.2.4",
+    "@nx/nx-win32-x64-msvc": "17.2.4"
+  },
   "jest": {
     "clearMocks": true,
     "collectCoverage": true,
