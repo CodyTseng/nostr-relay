@@ -1,13 +1,16 @@
 # deploy docs to gh-pages branch
 name: typedoc
 
-on: [push]
+on:
+  push:
+    branches:
+      - master
 
 permissions:
   contents: write
 
 jobs:
-  build_and_lint:
+  deploy-docs-to-gh-pages:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout the repository
@@ -29,6 +32,9 @@ jobs:
 
       - name: Build the project
         run: npm run build
+
+      - name: Unit tests
+        run: npm run test
 
       - name: Create the docs directory
         run: npm run docs

@@ -50,6 +50,8 @@ async function bootstrap() {
 bootstrap();
 ```
 
+Full API documentation can be found [here](https://codytseng.github.io/nostr-relay/)
+
 ## Examples
 
 - [nostr-relay-sqlite](https://github.com/CodyTseng/nostr-relay-sqlite)
