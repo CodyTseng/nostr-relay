@@ -1,7 +1,10 @@
 # deploy docs to gh-pages branch
 name: typedoc
 
-on: [push, pull_request]
+on: [push]
+
+permissions:
+  contents: write
 
 jobs:
   build_and_lint:
