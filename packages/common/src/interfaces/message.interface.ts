@@ -3,13 +3,13 @@ import { EventId, SubscriptionId } from './common.interface';
 import { Event } from './event.interface';
 import { Filter } from './filter.interface';
 
-type MessageTypeEvent = MessageType.EVENT | 'EVENT';
-type MessageTypeReq = MessageType.REQ | 'REQ';
-type MessageTypeClose = MessageType.CLOSE | 'CLOSE';
-type MessageTypeAuth = MessageType.AUTH | 'AUTH';
-type MessageTypeOk = MessageType.OK | 'OK';
-type MessageTypeEose = MessageType.EOSE | 'EOSE';
-type MessageTypeNotice = MessageType.NOTICE | 'NOTICE';
+export type MessageTypeEvent = MessageType.EVENT | 'EVENT';
+export type MessageTypeReq = MessageType.REQ | 'REQ';
+export type MessageTypeClose = MessageType.CLOSE | 'CLOSE';
+export type MessageTypeAuth = MessageType.AUTH | 'AUTH';
+export type MessageTypeOk = MessageType.OK | 'OK';
+export type MessageTypeEose = MessageType.EOSE | 'EOSE';
+export type MessageTypeNotice = MessageType.NOTICE | 'NOTICE';
 
 export type IncomingMessage =
   | IncomingEventMessage

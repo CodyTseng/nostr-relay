@@ -11,7 +11,8 @@
     "publish": "npm run clean && npm run build && lerna publish",
     "lint": "eslint 'packages/**/**.ts' --ignore-pattern 'packages/**/*.spec.ts'",
     "format": "prettier \"**/*.ts\" \"packages/**/*.json\" --ignore-path ./.prettierignore --write",
-    "test": "jest"
+    "test": "jest",
+    "docs": "typedoc"
   },
   "devDependencies": {
     "@types/jest": "^29.5.11",
@@ -23,7 +24,14 @@
     "lerna": "^8.0.0",
     "prettier": "^3.1.0",
     "ts-jest": "^29.1.1",
+    "typedoc": "^0.25.7",
     "typescript": "^5.3.2"
+  },
+  "optionalDependencies": {
+    "@nx/nx-darwin-arm64": "17.2.4",
+    "@nx/nx-darwin-x64": "17.2.4",
+    "@nx/nx-linux-x64-gnu": "17.2.4",
+    "@nx/nx-win32-x64-msvc": "17.2.4"
   },
   "jest": {
     "clearMocks": true,

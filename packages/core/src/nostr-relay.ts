@@ -9,12 +9,19 @@ import {
   Filter,
   FilterUtils,
   IncomingMessage,
-  Logger,
   MessageType,
   NostrRelayPlugin,
   SubscriptionId,
 } from '@nostr-relay/common';
 import { endWith, filter, map, tap } from 'rxjs';
+import {
+  HandleAuthMessageResult,
+  HandleCloseMessageResult,
+  HandleEventMessageResult,
+  HandleMessageResult,
+  HandleReqMessageResult,
+  NostrRelayOptions,
+} from './interfaces';
 import { EventService } from './services/event.service';
 import { PluginManagerService } from './services/plugin-manager.service';
 import { SubscriptionService } from './services/subscription.service';
@@ -26,41 +33,6 @@ import {
   createOutgoingNoticeMessage,
   createOutgoingOkMessage,
 } from './utils';
-
-type NostrRelayOptions = {
-  domain?: string;
-  logger?: Logger;
-  createdAtUpperLimit?: number;
-  createdAtLowerLimit?: number;
-  minPowDifficulty?: number;
-  maxSubscriptionsPerClient?: number;
-  filterResultCacheTtl?: number;
-  eventHandlingResultCacheTtl?: number;
-};
-
-type HandleReqMessageResult = {
-  events: Event[];
-};
-
-type HandleEventMessageResult = {
-  success: boolean;
-  message?: string;
-};
-
-type HandleCloseMessageResult = {
-  success: boolean;
-};
-
-type HandleAuthMessageResult = {
-  success: boolean;
-};
-
-type HandleMessageResult =
-  | ({ messageType: MessageType.REQ } & HandleReqMessageResult)
-  | ({ messageType: MessageType.EVENT } & HandleEventMessageResult)
-  | ({ messageType: MessageType.CLOSE } & HandleCloseMessageResult)
-  | ({ messageType: MessageType.AUTH } & HandleAuthMessageResult)
-  | void;
 
 export class NostrRelay {
   private readonly options: NostrRelayOptions;
@@ -74,6 +46,12 @@ export class NostrRelay {
 
   private readonly clientContexts = new Map<Client, ClientContext>();
 
+  /**
+   * Create a new NostrRelay instance.
+   *
+   * @param eventRepository EventRepository to use
+   * @param options Options for NostrRelay
+   */
   constructor(
     eventRepository: EventRepository,
     options: NostrRelayOptions = {},
@@ -110,11 +88,22 @@ export class NostrRelay {
     this.domain = options.domain;
   }
 
+  /**
+   * Register a plugin.
+   *
+   * @param plugin Plugin to register
+   */
   register(plugin: NostrRelayPlugin): NostrRelay {
     this.pluginManagerService.register(plugin);
     return this;
   }
 
+  /**
+   * Handle a new client connection. This method should be called when a new
+   * client connects to the Nostr Relay server.
+   *
+   * @param client Client instance, usually a WebSocket
+   */
   handleConnection(client: Client): void {
     const ctx = this.getClientContext(client);
     if (this.domain) {
@@ -122,10 +111,24 @@ export class NostrRelay {
     }
   }
 
+  /**
+   * Handle a client disconnection. This method should be called when a client
+   * disconnects from the Nostr Relay server.
+   *
+   * @param client Client instance, usually a WebSocket
+   */
   handleDisconnect(client: Client): void {
     this.clientContexts.delete(client);
   }
 
+  /**
+   * Handle an incoming message from a client. It can be an EVENT, REQ, CLOSE,
+   * or AUTH message. Before calling this method, you should validate the
+   * message by `@nostr-relay/validator` or other validators.
+   *
+   * @param client Client instance, usually a WebSocket
+   * @param message Incoming message from the client
+   */
   async handleMessage(
     client: Client,
     message: IncomingMessage,
@@ -172,6 +175,12 @@ export class NostrRelay {
     );
   }
 
+  /**
+   * Handle an EVENT message from a client.
+   *
+   * @param client Client instance, usually a WebSocket
+   * @param event Event to handle
+   */
   async handleEventMessage(
     client: Client,
     event: Event,
@@ -215,6 +224,13 @@ export class NostrRelay {
     };
   }
 
+  /**
+   * Handle a REQ message from a client.
+   *
+   * @param client Client instance, usually a WebSocket
+   * @param subscriptionId Subscription ID
+   * @param filters Filters
+   */
   async handleReqMessage(
     client: Client,
     subscriptionId: SubscriptionId,
@@ -263,6 +279,12 @@ export class NostrRelay {
     return { events };
   }
 
+  /**
+   * Handle a CLOSE message from a client.
+   *
+   * @param client Client instance, usually a WebSocket
+   * @param subscriptionId Subscription ID
+   */
   handleCloseMessage(
     client: Client,
     subscriptionId: SubscriptionId,
@@ -274,6 +296,12 @@ export class NostrRelay {
     return { success: true };
   }
 
+  /**
+   * Handle an AUTH message from a client.
+   *
+   * @param client Client instance, usually a WebSocket
+   * @param signedEvent Signed event
+   */
   handleAuthMessage(
     client: Client,
     signedEvent: Event,
@@ -301,6 +329,12 @@ export class NostrRelay {
     return { success: true };
   }
 
+  /**
+   * Check whether a client is authorized. If NIP-42 is unabled, this method
+   * always returns true.
+   *
+   * @param client Client instance, usually a WebSocket
+   */
   isAuthorized(client: Client): boolean {
     return this.domain ? !!this.getClientContext(client).pubkey : true;
   }
