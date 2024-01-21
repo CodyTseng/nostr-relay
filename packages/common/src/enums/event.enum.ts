@@ -17,6 +17,9 @@ export enum EventType {
   PARAMETERIZED_REPLACEABLE = 'PARAMETERIZED_REPLACEABLE',
 }
 
+/**
+ * Some special event kinds
+ */
 export enum EventKind {
   SET_METADATA = 0,
   TEXT_NOTE = 1,

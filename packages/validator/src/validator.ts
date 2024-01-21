@@ -8,11 +8,19 @@ import {
 } from './schemas';
 import { RawData, RequiredValidatorOptions, ValidatorOptions } from './types';
 
+/**
+ * Zod based validator for Nostr Relay messages
+ */
 export class Validator {
   private readonly incomingMessageSchema: z.ZodType<IncomingMessage>;
   private readonly filterSchema: z.ZodType<Filter>;
   private readonly eventSchema: z.ZodType<Event>;
 
+  /**
+   * Create a new validator
+   *
+   * @param options Validator options
+   */
   constructor(options: ValidatorOptions = {}) {
     const defaultOptions = this.defaultOptions(options);
     this.incomingMessageSchema = createIncomingMessageSchema(defaultOptions);
@@ -20,18 +28,34 @@ export class Validator {
     this.eventSchema = createEventSchema(defaultOptions);
   }
 
+  /**
+   * Validate incoming message
+   *
+   * @param data data to validate
+   */
   async validateIncomingMessage(data: RawData): Promise<IncomingMessage> {
     return await this.errorHandler(() =>
       this.incomingMessageSchema.parseAsync(this.prepareData(data)),
     );
   }
 
+  /**
+   * Validate filter
+   *
+   * @param data data to validate
+   * @returns
+   */
   async validateFilter(data: RawData): Promise<Filter> {
     return await this.errorHandler(() =>
       this.filterSchema.parseAsync(this.prepareData(data)),
     );
   }
 
+  /**
+   * Validate event
+   *
+   * @param data data to validate
+   */
   async validateEvent(data: RawData): Promise<Event> {
     return await this.errorHandler(() =>
       this.eventSchema.parseAsync(this.prepareData(data)),

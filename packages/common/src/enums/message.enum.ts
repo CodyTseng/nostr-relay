@@ -1,3 +1,6 @@
+/**
+ * Message types
+ */
 export enum MessageType {
   REQ = 'REQ',
   EVENT = 'EVENT',
