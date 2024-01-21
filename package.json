@@ -10,7 +10,9 @@
     "clean": "lerna run clean",
     "publish": "npm run clean && npm run build && lerna publish",
     "lint": "eslint 'packages/**/**.ts' --ignore-pattern 'packages/**/*.spec.ts'",
+    "lint:check": "eslint --max-warnings 0 'packages/**/**.ts' --ignore-pattern 'packages/**/*.spec.ts'",
     "format": "prettier \"**/*.ts\" \"packages/**/*.json\" --ignore-path ./.prettierignore --write",
+    "format:check": "prettier \"**/*.ts\" \"packages/**/*.json\" --ignore-path ./.prettierignore --check",
     "test": "jest",
     "docs": "typedoc"
   },
