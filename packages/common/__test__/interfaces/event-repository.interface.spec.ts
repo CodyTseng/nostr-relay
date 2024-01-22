@@ -1,4 +1,3 @@
-import { from } from 'rxjs';
 import { EventRepository } from '../../src';
 
 describe('EventRepository', () => {
@@ -18,11 +17,11 @@ describe('EventRepository', () => {
       expect(await eventRepository.findOne({})).toBeNull();
       expect(eventRepository.find).toHaveBeenCalledWith({ limit: 1 });
 
-      eventRepository.find = jest.fn().mockResolvedValue(from([]));
+      eventRepository.find = jest.fn().mockResolvedValue([]);
       expect(await eventRepository.findOne({})).toBeNull();
       expect(eventRepository.find).toHaveBeenCalledWith({ limit: 1 });
 
-      eventRepository.find = jest.fn().mockReturnValue(from([]));
+      eventRepository.find = jest.fn().mockReturnValue([]);
       expect(await eventRepository.findOne({})).toBeNull();
       expect(eventRepository.find).toHaveBeenCalledWith({ limit: 1 });
     });
@@ -37,11 +36,11 @@ describe('EventRepository', () => {
       expect(await eventRepository.findOne({})).toEqual(event);
       expect(eventRepository.find).toHaveBeenCalledWith({ limit: 1 });
 
-      eventRepository.find = jest.fn().mockResolvedValue(from([event]));
+      eventRepository.find = jest.fn().mockResolvedValue([event]);
       expect(await eventRepository.findOne({})).toEqual(event);
       expect(eventRepository.find).toHaveBeenCalledWith({ limit: 1 });
 
-      eventRepository.find = jest.fn().mockReturnValue(from([event]));
+      eventRepository.find = jest.fn().mockReturnValue([event]);
       expect(await eventRepository.findOne({})).toEqual(event);
       expect(eventRepository.find).toHaveBeenCalledWith({ limit: 1 });
     });
