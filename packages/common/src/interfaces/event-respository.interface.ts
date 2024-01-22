@@ -1,5 +1,3 @@
-import { Observable } from 'rxjs';
-import { observableToArray } from '../utils';
 import { Event } from './event.interface';
 import { Filter } from './filter.interface';
 
@@ -42,9 +40,7 @@ export abstract class EventRepository {
    *
    * @param filter Query filter
    */
-  abstract find(
-    filter: Filter,
-  ): Promise<Event[] | Observable<Event>> | Observable<Event> | Event[];
+  abstract find(filter: Filter): Promise<Event[]> | Event[];
 
   /**
    * This method doesn't need to be implemented. It's just a helper method for
@@ -53,11 +49,7 @@ export abstract class EventRepository {
    * @param filter Query filter
    */
   async findOne(filter: Filter): Promise<Event | null> {
-    let events = await this.find({ ...filter, limit: 1 });
-    if (Array.isArray(events)) {
-      return events[0] ?? null;
-    }
-    events = await observableToArray(events);
-    return events[0] ?? null;
+    const [event] = await this.find({ ...filter, limit: 1 });
+    return event ?? null;
   }
 }

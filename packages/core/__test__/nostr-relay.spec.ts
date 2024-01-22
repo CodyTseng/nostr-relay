@@ -1,4 +1,3 @@
-import { from } from 'rxjs';
 import {
   Client,
   ClientContext,
@@ -193,7 +192,7 @@ describe('NostrRelay', () => {
         .mockImplementation();
       const mockFind = jest
         .spyOn(nostrRelay['eventService'], 'find')
-        .mockReturnValue(from(events));
+        .mockResolvedValue(events);
 
       const result = await nostrRelay.handleReqMessage(
         client,
@@ -251,7 +250,7 @@ describe('NostrRelay', () => {
         .mockImplementation();
       const mockFind = jest
         .spyOn(nostrRelay['eventService'], 'find')
-        .mockReturnValue(from(events));
+        .mockResolvedValue(events);
 
       const result = await nostrRelay.handleReqMessage(
         client,
@@ -272,22 +271,6 @@ describe('NostrRelay', () => {
       );
     });
 
-    it('should throw error if error occurs during rxjs subscribe', async () => {
-      const subscriptionId: SubscriptionId = 'subscriptionId';
-      const filters: Filter[] = [{ kinds: [0] }];
-
-      jest
-        .spyOn(nostrRelay['subscriptionService'], 'subscribe')
-        .mockImplementation();
-      jest
-        .spyOn(nostrRelay['eventService'], 'find')
-        .mockReturnValue(from([undefined as any]));
-
-      await expect(
-        nostrRelay.handleReqMessage(client, subscriptionId, filters),
-      ).rejects.toThrow(Error);
-    });
-
     it('should handle req successfully if NIP-42 is not enabled and filter contains encrypted direct message kind', async () => {
       const nostrRelayWithoutDomain = new NostrRelay({} as EventRepository);
       const subscriptionId: SubscriptionId = 'subscriptionId';
@@ -300,7 +283,7 @@ describe('NostrRelay', () => {
         .mockImplementation();
       const mockFind = jest
         .spyOn(nostrRelayWithoutDomain['eventService'], 'find')
-        .mockReturnValue(from(events));
+        .mockResolvedValue(events);
 
       const result = await nostrRelayWithoutDomain.handleReqMessage(
         client,

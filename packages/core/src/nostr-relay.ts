@@ -13,7 +13,6 @@ import {
   NostrRelayPlugin,
   SubscriptionId,
 } from '@nostr-relay/common';
-import { endWith, filter, map, tap } from 'rxjs';
 import {
   HandleAuthMessageResult,
   HandleCloseMessageResult,
@@ -255,26 +254,16 @@ export class NostrRelay {
 
     this.subscriptionService.subscribe(ctx, subscriptionId, filters);
 
-    await new Promise<void>((resolve, reject) => {
-      const event$ = this.eventService.find(filters);
-      event$
-        .pipe(
-          filter(
-            event =>
-              !this.domain || EventUtils.checkPermission(event, ctx.pubkey),
-          ),
-          tap(event => events.push(event)),
-          map(event => createOutgoingEventMessage(subscriptionId, event)),
-          endWith(createOutgoingEoseMessage(subscriptionId)),
-        )
-        .subscribe({
-          next: message => {
-            ctx.sendMessage(message);
-          },
-          error: error => reject(error),
-          complete: () => resolve(),
-        });
+    (await this.eventService.find(filters)).forEach(event => {
+      if (this.domain && !EventUtils.checkPermission(event, ctx.pubkey)) {
+        return;
+      }
+
+      events.push(event);
+      ctx.sendMessage(createOutgoingEventMessage(subscriptionId, event));
     });
+
+    ctx.sendMessage(createOutgoingEoseMessage(subscriptionId));
 
     return { events };
   }

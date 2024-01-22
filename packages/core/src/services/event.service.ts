@@ -10,7 +10,6 @@ import {
   Filter,
   Logger,
 } from '@nostr-relay/common';
-import { EMPTY, Observable, distinct, from, merge, mergeMap } from 'rxjs';
 import { LazyCache } from '../utils';
 import { PluginManagerService } from './plugin-manager.service';
 import { SubscriptionService } from './subscription.service';
@@ -29,7 +28,7 @@ export class EventService {
   private readonly pluginManagerService: PluginManagerService;
   private readonly logger: Logger;
   private readonly findLazyCache?:
-    | LazyCache<string, Promise<Observable<Event>>>
+    | LazyCache<string, Promise<Event[]>>
     | undefined;
   private readonly createdAtUpperLimit: number | undefined;
   private readonly createdAtLowerLimit: number | undefined;
@@ -58,11 +57,11 @@ export class EventService {
     }
   }
 
-  find(filters: Filter[]): Observable<Event> {
-    return merge(...filters.map(filter => this.findByFilter(filter))).pipe(
-      mergeMap(events => events),
-      distinct(event => event.id),
+  async find(filters: Filter[]): Promise<Event[]> {
+    const arrays = await Promise.all(
+      filters.map(filter => this.findByFilter(filter)),
     );
+    return this.mergeSortedEventArrays(arrays);
   }
 
   async handleEvent(
@@ -114,24 +113,20 @@ export class EventService {
     }
   }
 
-  private async findByFilter(filter: Filter): Promise<Observable<Event>> {
-    const callback = async (): Promise<Observable<Event>> => {
+  private async findByFilter(filter: Filter): Promise<Event[]> {
+    const callback = async (): Promise<Event[]> => {
       if (
         filter.search !== undefined &&
         !this.eventRepository.isSearchSupported
       ) {
-        return EMPTY;
+        return [];
       }
-      let findResult = this.eventRepository.find(filter);
-      if (findResult instanceof Promise) {
-        findResult = await findResult;
-      }
-      return Array.isArray(findResult) ? from(findResult) : findResult;
+      return await this.eventRepository.find(filter);
     };
 
     return this.findLazyCache
-      ? this.findLazyCache.get(JSON.stringify(filter), callback)
-      : callback();
+      ? await this.findLazyCache.get(JSON.stringify(filter), callback)
+      : await callback();
   }
 
   private async handleEphemeralEvent(
@@ -172,5 +167,42 @@ export class EventService {
     await this.subscriptionService.broadcast(event);
 
     await this.pluginManagerService.callAfterEventBroadcastHooks(ctx, event);
+  }
+
+  private mergeSortedEventArrays(arrays: Event[][]): Event[] {
+    if (arrays.length === 0) {
+      return [];
+    }
+
+    function merge(left: Event[], right: Event[]): Event[] {
+      const result: Event[] = [];
+      let leftIndex = 0;
+      let rightIndex = 0;
+
+      while (leftIndex < left.length && rightIndex < right.length) {
+        const leftEvent = left[leftIndex];
+        const rightEvent = right[rightIndex];
+        if (
+          leftEvent.created_at > rightEvent.created_at ||
+          (leftEvent.created_at === rightEvent.created_at &&
+            leftEvent.id < rightEvent.id)
+        ) {
+          result.push(leftEvent);
+          leftIndex++;
+        } else {
+          result.push(rightEvent);
+          rightIndex++;
+        }
+      }
+
+      return result.concat(left.slice(leftIndex), right.slice(rightIndex));
+    }
+
+    let result: Event[] = arrays[0];
+    for (let i = 1; i < arrays.length; i++) {
+      result = merge(result, arrays[i]);
+    }
+
+    return result.filter((e, i, a) => i === 0 || e.id !== a[i - 1]?.id);
   }
 }
