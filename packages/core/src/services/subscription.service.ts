@@ -1,7 +1,6 @@
 import {
   Client,
   ClientContext,
-  ConsoleLoggerService,
   Event,
   EventUtils,
   Filter,
@@ -9,21 +8,11 @@ import {
 } from '@nostr-relay/common';
 import { createOutgoingEventMessage } from '../utils';
 
-type SubscriptionServiceOptions = {
-  logger?: Logger;
-};
-
 export class SubscriptionService {
-  private readonly logger: Logger;
-  private readonly clientsMap: Map<Client, ClientContext>;
-
   constructor(
-    clientsMap: Map<Client, ClientContext>,
-    options: SubscriptionServiceOptions = {},
-  ) {
-    this.clientsMap = clientsMap;
-    this.logger = options.logger ?? new ConsoleLoggerService();
-  }
+    private readonly clientsMap: Map<Client, ClientContext>,
+    private readonly logger: Logger,
+  ) {}
 
   subscribe(
     ctx: ClientContext,
@@ -56,7 +45,10 @@ export class SubscriptionService {
         });
       }
     } catch (error) {
-      this.logger.error(`${SubscriptionService.name}.eventListener`, error);
+      this.logger.error(
+        `[${SubscriptionService.name}.eventListener] ${error.message}`,
+        error,
+      );
     }
   }
 }

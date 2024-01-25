@@ -1,6 +1,7 @@
 import {
   Client,
   ClientContext,
+  ConsoleLoggerService,
   Event,
   EventHandleResult,
   EventId,
@@ -9,6 +10,7 @@ import {
   Filter,
   FilterUtils,
   IncomingMessage,
+  LogLevel,
   MessageType,
   NostrRelayPlugin,
   SubscriptionId,
@@ -57,16 +59,20 @@ export class NostrRelay {
   ) {
     this.options = options;
 
+    const logger = options.logger ?? new ConsoleLoggerService();
+    logger.setLogLevel(options.logLevel ?? LogLevel.INFO);
+
     this.pluginManagerService = new PluginManagerService();
-    this.subscriptionService = new SubscriptionService(this.clientContexts, {
-      logger: options.logger,
-    });
+    this.subscriptionService = new SubscriptionService(
+      this.clientContexts,
+      logger,
+    );
     this.eventService = new EventService(
       eventRepository,
       this.subscriptionService,
       this.pluginManagerService,
+      logger,
       {
-        logger: options.logger,
         createdAtUpperLimit: options.createdAtUpperLimit,
         createdAtLowerLimit: options.createdAtLowerLimit,
         minPowDifficulty: options.minPowDifficulty,
@@ -319,7 +325,7 @@ export class NostrRelay {
   }
 
   /**
-   * Check whether a client is authorized. If NIP-42 is unabled, this method
+   * Check whether a client is authorized. If NIP-42 is unable, this method
    * always returns true.
    *
    * @param client Client instance, usually a WebSocket

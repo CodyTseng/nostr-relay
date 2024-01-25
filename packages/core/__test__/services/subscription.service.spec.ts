@@ -2,6 +2,7 @@ import {
   Client,
   ClientContext,
   ClientReadyState,
+  ConsoleLoggerService,
   Event,
   EventUtils,
   Filter,
@@ -17,11 +18,10 @@ describe('SubscriptionService', () => {
 
   beforeEach(() => {
     clientsMap = new Map<Client, ClientContext>();
-    subscriptionService = new SubscriptionService(clientsMap, {
-      logger: {
-        error: jest.fn(),
-      },
-    });
+    subscriptionService = new SubscriptionService(
+      clientsMap,
+      new ConsoleLoggerService(),
+    );
     client = {
       readyState: ClientReadyState.OPEN,
       send: jest.fn(),
@@ -138,12 +138,15 @@ describe('SubscriptionService', () => {
       jest.spyOn(EventUtils, 'isMatchingFilter').mockImplementation(() => {
         throw new Error('error');
       });
+      const spyLoggerError = jest
+        .spyOn(subscriptionService['logger'], 'error')
+        .mockImplementation();
 
       subscriptionService.subscribe(ctx, subscriptionId, filters);
       await subscriptionService.broadcast(event);
 
       expect(client.send).not.toHaveBeenCalled();
-      expect(subscriptionService['logger'].error).toHaveBeenCalled();
+      expect(spyLoggerError).toHaveBeenCalled();
     });
   });
 });

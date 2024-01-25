@@ -1,4 +1,4 @@
-import { Event, Logger, MessageType } from '@nostr-relay/common';
+import { Event, LogLevel, Logger, MessageType } from '@nostr-relay/common';
 
 /**
  * Options for NostrRelay
@@ -13,6 +13,10 @@ export type NostrRelayOptions = {
    * Logger to use. `Default: ConsoleLoggerService`
    */
   logger?: Logger;
+  /**
+   * The minimum log level to log. `Default: LogLevel.INFO`
+   */
+  logLevel?: LogLevel;
   createdAtUpperLimit?: number;
   createdAtLowerLimit?: number;
   /**
