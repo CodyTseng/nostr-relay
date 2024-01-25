@@ -1,6 +1,7 @@
 import {
   ClientContext,
   ClientReadyState,
+  ConsoleLoggerService,
   Event,
   EventKind,
   EventRepository,
@@ -25,17 +26,18 @@ describe('eventService', () => {
       find: jest.fn(),
       findOne: jest.fn(),
     };
-    subscriptionService = new SubscriptionService(new Map());
+    subscriptionService = new SubscriptionService(
+      new Map(),
+      new ConsoleLoggerService(),
+    );
     subscriptionService.broadcast = jest.fn();
     pluginManagerService = new PluginManagerService();
     eventService = new EventService(
       eventRepository,
       subscriptionService,
       pluginManagerService,
+      new ConsoleLoggerService(),
       {
-        logger: {
-          error: jest.fn(),
-        },
         filterResultCacheTtl: 0,
       },
     );
@@ -79,6 +81,7 @@ describe('eventService', () => {
         eventRepository,
         subscriptionService,
         pluginManagerService,
+        new ConsoleLoggerService(),
       );
       const filters = [{}, {}] as Filter[];
       const events = [{ id: 'a' }, { id: 'b' }] as Event[];
@@ -207,13 +210,16 @@ describe('eventService', () => {
       jest.spyOn(eventRepository, 'upsert').mockImplementation(() => {
         throw new Error('test');
       });
+      const spyLoggerError = jest
+        .spyOn(eventService['logger'], 'error')
+        .mockImplementation();
 
       expect(await eventService.handleEvent(ctx, event)).toEqual({
         success: false,
         message: 'error: test',
       });
       expect(subscriptionService.broadcast).not.toHaveBeenCalled();
-      expect(eventService['logger'].error).toHaveBeenCalled();
+      expect(spyLoggerError).toHaveBeenCalled();
     });
 
     it('should catch unknown error', async () => {
@@ -222,13 +228,16 @@ describe('eventService', () => {
       jest.spyOn(eventRepository, 'findOne').mockResolvedValue(null);
       jest.spyOn(EventUtils, 'validate').mockReturnValue(undefined);
       jest.spyOn(eventRepository, 'upsert').mockRejectedValue('unknown');
+      const spyLoggerError = jest
+        .spyOn(eventService['logger'], 'error')
+        .mockImplementation();
 
       expect(await eventService.handleEvent(ctx, event)).toEqual({
         success: false,
         message: 'error: unknown',
       });
       expect(subscriptionService.broadcast).not.toHaveBeenCalled();
-      expect(eventService['logger'].error).toHaveBeenCalled();
+      expect(spyLoggerError).toHaveBeenCalled();
     });
   });
 

@@ -1,6 +1,5 @@
 import {
   ClientContext,
-  ConsoleLoggerService,
   Event,
   EventHandleResult,
   EventKind,
@@ -15,7 +14,6 @@ import { PluginManagerService } from './plugin-manager.service';
 import { SubscriptionService } from './subscription.service';
 
 type EventServiceOptions = {
-  logger?: Logger;
   createdAtUpperLimit?: number;
   createdAtLowerLimit?: number;
   minPowDifficulty?: number;
@@ -38,12 +36,13 @@ export class EventService {
     eventRepository: EventRepository,
     subscriptionService: SubscriptionService,
     pluginManagerService: PluginManagerService,
+    logger: Logger,
     options: EventServiceOptions = {},
   ) {
     this.eventRepository = eventRepository;
     this.subscriptionService = subscriptionService;
     this.pluginManagerService = pluginManagerService;
-    this.logger = options.logger ?? new ConsoleLoggerService();
+    this.logger = logger;
     this.createdAtUpperLimit = options.createdAtUpperLimit;
     this.createdAtLowerLimit = options.createdAtLowerLimit;
     this.minPowDifficulty = options.minPowDifficulty;
@@ -99,13 +98,20 @@ export class EventService {
       }
       return await this.handleRegularEvent(ctx, event);
     } catch (error) {
-      this.logger.error(`${EventService.name}.handleEvent`, error);
       if (error instanceof Error) {
+        this.logger.error(
+          `[${EventService.name}.handleEvent] ${error.message}`,
+          error,
+        );
         return {
           success: false,
           message: 'error: ' + error.message,
         };
       }
+      this.logger.error(
+        `[${EventService.name}.handleEvent] unknown error`,
+        error,
+      );
       return {
         success: false,
         message: 'error: unknown',
