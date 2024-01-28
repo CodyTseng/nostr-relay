@@ -56,6 +56,8 @@ Full API documentation can be found [here](https://codytseng.github.io/nostr-rel
 ## Examples
 
 - [nostr-relay-sqlite](https://github.com/CodyTseng/nostr-relay-sqlite)
+- [nostr-relay-tray](https://github.com/CodyTseng/nostr-relay-tray)
+- [nostr-relay-nestjs](https://github.com/CodyTseng/nostr-relay-nestjs)
 
 ## Donate
 
