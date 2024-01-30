@@ -269,7 +269,7 @@ export class EventRepositorySqlite extends EventRepository {
       .sort((a, b) => a.length - b.length);
   }
 
-  private applyLimit(limit = 100) {
+  private applyLimit(limit = 100): number {
     return Math.min(limit, 1000);
   }
 
