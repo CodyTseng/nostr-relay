@@ -104,7 +104,7 @@ export class EventRepositorySqlite extends EventRepository {
   }
 
   async find(filter: Filter): Promise<Event[]> {
-    const { ids, authors, kinds, since, until, limit = 1000 } = filter;
+    const { ids, authors, kinds, since, until, limit } = filter;
 
     if (limit === 0) return [];
 
@@ -163,7 +163,7 @@ export class EventRepositorySqlite extends EventRepository {
           ' ',
         )} ${whereClause} ORDER BY e.created_at DESC LIMIT ?`,
       )
-      .all(whereValues.concat(limit));
+      .all(whereValues.concat(this.applyLimit(limit)));
 
     return rows.map(this.toEvent);
   }
@@ -172,7 +172,7 @@ export class EventRepositorySqlite extends EventRepository {
     filter: Filter,
     genericTags: string[][],
   ): Promise<Event[]> {
-    const { authors, kinds, since, until, limit = 1000 } = filter;
+    const { authors, kinds, since, until, limit } = filter;
 
     const innerJoinClauses: string[] = [];
 
@@ -224,7 +224,7 @@ export class EventRepositorySqlite extends EventRepository {
           ' ',
         )} ${whereClause} ORDER BY g.created_at DESC LIMIT ?) ORDER BY created_at DESC`,
       )
-      .all(whereValues.concat(limit));
+      .all(whereValues.concat(this.applyLimit(limit)));
 
     return rows.map(this.toEvent);
   }
@@ -267,6 +267,10 @@ export class EventRepositorySqlite extends EventRepository {
         return filter[key].map((v: string) => this.toGenericTag(tagName, v));
       })
       .sort((a, b) => a.length - b.length);
+  }
+
+  private applyLimit(limit = 100) {
+    return Math.min(limit, 1000);
   }
 
   private migrate(): {
