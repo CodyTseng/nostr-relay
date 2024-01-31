@@ -88,8 +88,7 @@ export class Validator {
 
   private defaultOptions(options: ValidatorOptions): RequiredValidatorOptions {
     return {
-      maxItemsPerTag: 10,
-      maxLengthPerTagItem: 1024,
+      maxTagValueLength: 1024,
       maxNumberOfTags: 2000,
       maxContentLength: 100 * 1024,
       maxSubscriptionIdLength: 128,

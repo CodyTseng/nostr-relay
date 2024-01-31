@@ -28,23 +28,17 @@ export const EventSigSchema = HexStringSchema.length(128, {
 });
 
 export function createEventTagSchema({
-  maxItemsPerTag,
-  maxLengthPerTagItem,
-}: Pick<
-  RequiredValidatorOptions,
-  'maxItemsPerTag' | 'maxLengthPerTagItem'
->): z.ZodType<string[]> {
-  return z
-    .array(
-      z
-        .string({ invalid_type_error: 'must be a string' })
-        .max(maxLengthPerTagItem, {
-          message: `must be less than ${maxLengthPerTagItem} chars`,
-        }),
-    )
-    .max(maxItemsPerTag, {
-      message: `must be less than or equal to ${maxItemsPerTag} tag items`,
-    });
+  maxTagValueLength,
+}: Pick<RequiredValidatorOptions, 'maxTagValueLength'>): z.ZodType<string[]> {
+  return z.array(z.string({ invalid_type_error: 'must be a string' })).refine(
+    tag => {
+      if (tag.length <= 1 || tag[0].length > 1) return true;
+      return tag[1].length <= maxTagValueLength;
+    },
+    {
+      message: `tag value must be less than ${maxTagValueLength} chars`,
+    },
+  );
 }
 
 export function createEventContentSchema({

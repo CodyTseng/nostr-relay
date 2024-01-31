@@ -14,10 +14,7 @@ import { RequiredValidatorOptions } from '../types';
 export function createEventSchema(
   options: Pick<
     RequiredValidatorOptions,
-    | 'maxItemsPerTag'
-    | 'maxLengthPerTagItem'
-    | 'maxNumberOfTags'
-    | 'maxContentLength'
+    'maxTagValueLength' | 'maxNumberOfTags' | 'maxContentLength'
   >,
 ): z.ZodType<Event> {
   return z.object({
@@ -36,10 +33,7 @@ export function createEventSchema(
 export function createEventMessageSchema(
   options: Pick<
     RequiredValidatorOptions,
-    | 'maxItemsPerTag'
-    | 'maxLengthPerTagItem'
-    | 'maxNumberOfTags'
-    | 'maxContentLength'
+    'maxTagValueLength' | 'maxNumberOfTags' | 'maxContentLength'
   >,
 ): z.ZodType<IncomingEventMessage> {
   return z.tuple([z.literal(MessageType.EVENT), createEventSchema(options)]);

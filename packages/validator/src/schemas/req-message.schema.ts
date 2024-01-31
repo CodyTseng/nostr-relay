@@ -12,17 +12,17 @@ import {
 
 function createGenericTagFilterValuesSchema({
   maxFilterGenericTagsLength,
-  maxLengthPerTagItem,
+  maxTagValueLength,
 }: Pick<
   RequiredValidatorOptions,
-  'maxFilterGenericTagsLength' | 'maxLengthPerTagItem'
+  'maxFilterGenericTagsLength' | 'maxTagValueLength'
 >): z.ZodType<string[]> {
   return z
     .array(
       z
         .string({ invalid_type_error: 'must be a string' })
-        .max(maxLengthPerTagItem, {
-          message: `must be less than or equal to ${maxLengthPerTagItem} characters`,
+        .max(maxTagValueLength, {
+          message: `must be less than or equal to ${maxTagValueLength} characters`,
         }),
     )
     .min(1, { message: 'must be greater than or equal to 1 tagValues' })
@@ -39,7 +39,7 @@ export function createFilterSchema(
     | 'maxFilterAuthorsLength'
     | 'maxFilterKindsLength'
     | 'maxFilterGenericTagsLength'
-    | 'maxLengthPerTagItem'
+    | 'maxTagValueLength'
     | 'maxFilterSearchStringLength'
   >,
 ): z.ZodType<Filter> {
@@ -128,7 +128,7 @@ export function createReqMessageSchema(
     | 'maxFilterAuthorsLength'
     | 'maxFilterKindsLength'
     | 'maxFilterGenericTagsLength'
-    | 'maxLengthPerTagItem'
+    | 'maxTagValueLength'
     | 'maxFilterSearchStringLength'
   >,
 ): z.ZodType<IncomingReqMessage> {

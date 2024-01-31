@@ -35,7 +35,7 @@ describe('Validator', () => {
       ).toEqual(eventMessage);
     });
 
-    it('should throw error if event message is invalid', () => {
+    it('should throw error if event message is invalid', async () => {
       const event = {
         id: '0',
         pubkey:
@@ -48,16 +48,16 @@ describe('Validator', () => {
       };
       const eventMessage = [MessageType.EVENT, event];
 
-      expect(validator.validateIncomingMessage(eventMessage)).rejects.toThrow(
-        'invalid:',
-      );
+      await expect(
+        validator.validateIncomingMessage(eventMessage),
+      ).rejects.toThrow('invalid:');
 
       jest
         .spyOn(validator['incomingMessageSchema'], 'parseAsync')
         .mockRejectedValue(new Error('test'));
-      expect(validator.validateIncomingMessage(eventMessage)).rejects.toThrow(
-        'test',
-      );
+      await expect(
+        validator.validateIncomingMessage(eventMessage),
+      ).rejects.toThrow('test');
     });
 
     it('should validate req message', async () => {
@@ -179,6 +179,39 @@ describe('Validator', () => {
       };
 
       expect(await validator.validateEvent(event)).toEqual(event);
+    });
+
+    it('should validate tag value correctly', async () => {
+      const specValidator = new Validator({ maxTagValueLength: 1 });
+      const event1 = {
+        id: '0000000000000000000000000000000000000000000000000000000000000000',
+        pubkey:
+          '0000000000000000000000000000000000000000000000000000000000000000',
+        kind: 1,
+        content: 'hello nostr',
+        tags: [
+          ['hello', 'world'],
+          ['a', 'b', 'ccc'],
+        ],
+        created_at: 0,
+        sig: '00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000',
+      };
+      expect(await specValidator.validateEvent(event1)).toEqual(event1);
+
+      const event2 = {
+        id: '0000000000000000000000000000000000000000000000000000000000000000',
+        pubkey:
+          '0000000000000000000000000000000000000000000000000000000000000000',
+        kind: 1,
+        content: 'hello nostr',
+        tags: [
+          ['hello', 'world'],
+          ['a', 'bb'],
+        ],
+        created_at: 0,
+        sig: '00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000',
+      };
+      await expect(specValidator.validateEvent(event2)).rejects.toThrow();
     });
   });
 });

@@ -6,10 +6,7 @@ import { RequiredValidatorOptions } from '../types';
 export function createAuthMessageSchema(
   options: Pick<
     RequiredValidatorOptions,
-    | 'maxItemsPerTag'
-    | 'maxLengthPerTagItem'
-    | 'maxNumberOfTags'
-    | 'maxContentLength'
+    'maxTagValueLength' | 'maxNumberOfTags' | 'maxContentLength'
   >,
 ): z.ZodType<IncomingAuthMessage> {
   return z.tuple([z.literal(MessageType.AUTH), createEventSchema(options)]);
