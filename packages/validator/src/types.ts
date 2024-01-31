@@ -5,13 +5,9 @@ export type RawData = Buffer | ArrayBuffer | Buffer[] | string | object;
  */
 export type ValidatorOptions = {
   /**
-   * maximum number of items per tag. `Default: 10`
+   * maximum length of tag value. `Default: 1024`
    */
-  maxItemsPerTag?: number;
-  /**
-   * maximum length of each tag item. `Default: 1024`
-   */
-  maxLengthPerTagItem?: number;
+  maxTagValueLength?: number;
   /**
    * maximum number of tags. `Default: 2000`
    */
