@@ -66,6 +66,7 @@ export class NostrRelay {
     this.subscriptionService = new SubscriptionService(
       this.clientContexts,
       logger,
+      !!options.domain,
     );
     this.eventService = new EventService(
       eventRepository,

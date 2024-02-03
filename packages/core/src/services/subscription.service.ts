@@ -12,6 +12,7 @@ export class SubscriptionService {
   constructor(
     private readonly clientsMap: Map<Client, ClientContext>,
     private readonly logger: Logger,
+    private readonly isNip42Enabled: boolean,
   ) {}
 
   subscribe(
@@ -37,11 +38,14 @@ export class SubscriptionService {
 
         ctx.subscriptions.forEach((filters, subscriptionId) => {
           if (
-            !filters.some(filter => EventUtils.isMatchingFilter(event, filter))
+            filters.some(filter =>
+              EventUtils.isMatchingFilter(event, filter),
+            ) &&
+            (!this.isNip42Enabled ||
+              EventUtils.checkPermission(event, ctx.pubkey))
           ) {
-            return;
+            ctx.sendMessage(createOutgoingEventMessage(subscriptionId, event));
           }
-          ctx.sendMessage(createOutgoingEventMessage(subscriptionId, event));
         });
       }
     } catch (error) {
