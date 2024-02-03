@@ -4,6 +4,7 @@ import {
   ClientReadyState,
   ConsoleLoggerService,
   Event,
+  EventKind,
   EventUtils,
   Filter,
   MessageType,
@@ -21,6 +22,7 @@ describe('SubscriptionService', () => {
     subscriptionService = new SubscriptionService(
       clientsMap,
       new ConsoleLoggerService(),
+      true,
     );
     client = {
       readyState: ClientReadyState.OPEN,
@@ -126,6 +128,43 @@ describe('SubscriptionService', () => {
       await subscriptionService.broadcast(event);
 
       expect(client.send).not.toHaveBeenCalled();
+    });
+
+    it('should not broadcast event to client if client is unauthorized', async () => {
+      const subscriptionId = 'subscriptionId';
+      const filters = [{}] as Filter[];
+      const event = {
+        id: 'id',
+        kind: EventKind.ENCRYPTED_DIRECT_MESSAGE,
+      } as Event;
+
+      jest.spyOn(EventUtils, 'isMatchingFilter').mockReturnValue(true);
+      jest.spyOn(EventUtils, 'checkPermission').mockReturnValue(false);
+
+      subscriptionService.subscribe(ctx, subscriptionId, filters);
+      await subscriptionService.broadcast(event);
+
+      expect(client.send).not.toHaveBeenCalled();
+    });
+
+    it('should broadcast event to client if nip-42 is disabled and client is unauthorized', async () => {
+      (subscriptionService as any).isNip42Enabled = false;
+      const subscriptionId = 'subscriptionId';
+      const filters = [{}] as Filter[];
+      const event = {
+        id: 'id',
+        kind: EventKind.ENCRYPTED_DIRECT_MESSAGE,
+      } as Event;
+
+      jest.spyOn(EventUtils, 'isMatchingFilter').mockReturnValue(true);
+      jest.spyOn(EventUtils, 'checkPermission').mockReturnValue(false);
+
+      subscriptionService.subscribe(ctx, subscriptionId, filters);
+      await subscriptionService.broadcast(event);
+
+      expect(client.send).toHaveBeenCalledWith(
+        JSON.stringify([MessageType.EVENT, subscriptionId, event]),
+      );
     });
 
     it('should catch error', async () => {

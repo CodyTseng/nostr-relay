@@ -29,6 +29,7 @@ describe('eventService', () => {
     subscriptionService = new SubscriptionService(
       new Map(),
       new ConsoleLoggerService(),
+      true,
     );
     subscriptionService.broadcast = jest.fn();
     pluginManagerService = new PluginManagerService();
