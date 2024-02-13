@@ -1,4 +1,4 @@
-import { EventId, Pubkey, Siganature, Tag } from './common.interface';
+import { EventId, Pubkey, Signature, Tag } from './common.interface';
 
 export interface Event {
   id: EventId;
@@ -7,7 +7,7 @@ export interface Event {
   kind: number;
   tags: Tag[];
   content: string;
-  sig: Siganature;
+  sig: Signature;
 }
 
 export type EventHandleResult = {
