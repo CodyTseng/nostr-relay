@@ -85,8 +85,8 @@ export type HandleAuthMessageResult = {
  * Result of handling an incoming message
  */
 export type HandleMessageResult =
-  | ({ messageType: MessageType.REQ } & HandleReqMessageResult)
-  | ({ messageType: MessageType.EVENT } & HandleEventMessageResult)
-  | ({ messageType: MessageType.CLOSE } & HandleCloseMessageResult)
-  | ({ messageType: MessageType.AUTH } & HandleAuthMessageResult)
+  | ({ messageType: typeof MessageType.REQ } & HandleReqMessageResult)
+  | ({ messageType: typeof MessageType.EVENT } & HandleEventMessageResult)
+  | ({ messageType: typeof MessageType.CLOSE } & HandleCloseMessageResult)
+  | ({ messageType: typeof MessageType.AUTH } & HandleAuthMessageResult)
   | void;

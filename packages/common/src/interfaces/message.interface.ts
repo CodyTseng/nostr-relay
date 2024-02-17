@@ -1,15 +1,18 @@
-import { MessageType } from '../enums';
 import { EventId, SubscriptionId } from './common.interface';
 import { Event } from './event.interface';
 import { Filter } from './filter.interface';
 
-export type MessageTypeEvent = MessageType.EVENT | 'EVENT';
-export type MessageTypeReq = MessageType.REQ | 'REQ';
-export type MessageTypeClose = MessageType.CLOSE | 'CLOSE';
-export type MessageTypeAuth = MessageType.AUTH | 'AUTH';
-export type MessageTypeOk = MessageType.OK | 'OK';
-export type MessageTypeEose = MessageType.EOSE | 'EOSE';
-export type MessageTypeNotice = MessageType.NOTICE | 'NOTICE';
+export const MessageType = {
+  REQ: 'REQ',
+  EVENT: 'EVENT',
+  CLOSE: 'CLOSE',
+  AUTH: 'AUTH',
+  EOSE: 'EOSE',
+  OK: 'OK',
+  NOTICE: 'NOTICE',
+  CLOSED: 'CLOSED',
+} as const;
+export type TMessageType = (typeof MessageType)[keyof typeof MessageType];
 
 export type IncomingMessage =
   | IncomingEventMessage
@@ -17,20 +20,39 @@ export type IncomingMessage =
   | IncomingCloseMessage
   | IncomingAuthMessage;
 
-export type IncomingEventMessage = [MessageTypeEvent, Event];
-export type IncomingReqMessage = [MessageTypeReq, SubscriptionId, ...Filter[]];
-export type IncomingCloseMessage = [MessageTypeClose, SubscriptionId];
-export type IncomingAuthMessage = [MessageTypeAuth, Event];
+export type IncomingEventMessage = [typeof MessageType.EVENT, Event];
+export type IncomingReqMessage = [
+  typeof MessageType.REQ,
+  SubscriptionId,
+  ...Filter[],
+];
+export type IncomingCloseMessage = [typeof MessageType.CLOSE, SubscriptionId];
+export type IncomingAuthMessage = [typeof MessageType.AUTH, Event];
 
 export type OutgoingMessage =
   | OutgoingOkMessage
   | OutgoingEventMessage
   | OutgoingEoseMessage
   | OutgoingNoticeMessage
-  | OutgoingAuthMessage;
+  | OutgoingAuthMessage
+  | OutgoingClosedMessage;
 
-export type OutgoingOkMessage = [MessageTypeOk, EventId, boolean, string];
-export type OutgoingEventMessage = [MessageTypeEvent, SubscriptionId, Event];
-export type OutgoingEoseMessage = [MessageTypeEose, SubscriptionId];
-export type OutgoingNoticeMessage = [MessageTypeNotice, string];
-export type OutgoingAuthMessage = [MessageTypeAuth, string];
+export type OutgoingOkMessage = [
+  typeof MessageType.OK,
+  EventId,
+  boolean,
+  string,
+];
+export type OutgoingEventMessage = [
+  typeof MessageType.EVENT,
+  SubscriptionId,
+  Event,
+];
+export type OutgoingEoseMessage = [typeof MessageType.EOSE, SubscriptionId];
+export type OutgoingNoticeMessage = [typeof MessageType.NOTICE, string];
+export type OutgoingAuthMessage = [typeof MessageType.AUTH, string];
+export type OutgoingClosedMessage = [
+  typeof MessageType.CLOSED,
+  SubscriptionId,
+  string,
+];

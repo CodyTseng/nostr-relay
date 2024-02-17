@@ -228,11 +228,17 @@ describe('NostrRelay', () => {
       );
 
       expect(result).toEqual({ events: [] });
-      expect(client.send).toHaveBeenCalledWith(
+      expect(client.send).toHaveBeenNthCalledWith(
+        1,
         JSON.stringify([
-          MessageType.NOTICE,
+          MessageType.CLOSED,
+          subscriptionId,
           "restricted: we can't serve DMs to unauthenticated users, does your client implement NIP-42?",
         ]),
+      );
+      expect(client.send).toHaveBeenNthCalledWith(
+        2,
+        JSON.stringify([MessageType.AUTH, ctx.id]),
       );
     });
 
