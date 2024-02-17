@@ -2,6 +2,7 @@ import {
   Event,
   MessageType,
   OutgoingAuthMessage,
+  OutgoingClosedMessage,
   OutgoingEoseMessage,
   OutgoingEventMessage,
   OutgoingNoticeMessage,
@@ -73,4 +74,18 @@ export function createOutgoingAuthMessage(
   challenge: string,
 ): OutgoingAuthMessage {
   return [MessageType.AUTH, challenge];
+}
+
+/**
+ * Create an outgoing CLOSED message.
+ * More info: https://github.com/nostr-protocol/nips/blob/master/01.md
+ *
+ * @param subscriptionId Subscription Id
+ * @param message Reason for closing the subscription
+ */
+export function createOutgoingClosedMessage(
+  subscriptionId: SubscriptionId,
+  message = '',
+): OutgoingClosedMessage {
+  return [MessageType.CLOSED, subscriptionId, message];
 }

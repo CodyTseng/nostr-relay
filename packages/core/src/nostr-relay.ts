@@ -29,6 +29,7 @@ import { SubscriptionService } from './services/subscription.service';
 import {
   LazyCache,
   createOutgoingAuthMessage,
+  createOutgoingClosedMessage,
   createOutgoingEoseMessage,
   createOutgoingEventMessage,
   createOutgoingNoticeMessage,
@@ -252,10 +253,12 @@ export class NostrRelay {
       !ctx.pubkey
     ) {
       ctx.sendMessage(
-        createOutgoingNoticeMessage(
+        createOutgoingClosedMessage(
+          subscriptionId,
           "restricted: we can't serve DMs to unauthenticated users, does your client implement NIP-42?",
         ),
       );
+      ctx.sendMessage(createOutgoingAuthMessage(ctx.id));
       return { events };
     }
 

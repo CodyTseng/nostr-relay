@@ -10,6 +10,7 @@ export const MessageType = {
   EOSE: 'EOSE',
   OK: 'OK',
   NOTICE: 'NOTICE',
+  CLOSED: 'CLOSED',
 } as const;
 export type TMessageType = (typeof MessageType)[keyof typeof MessageType];
 
@@ -33,7 +34,8 @@ export type OutgoingMessage =
   | OutgoingEventMessage
   | OutgoingEoseMessage
   | OutgoingNoticeMessage
-  | OutgoingAuthMessage;
+  | OutgoingAuthMessage
+  | OutgoingClosedMessage;
 
 export type OutgoingOkMessage = [
   typeof MessageType.OK,
@@ -49,3 +51,8 @@ export type OutgoingEventMessage = [
 export type OutgoingEoseMessage = [typeof MessageType.EOSE, SubscriptionId];
 export type OutgoingNoticeMessage = [typeof MessageType.NOTICE, string];
 export type OutgoingAuthMessage = [typeof MessageType.AUTH, string];
+export type OutgoingClosedMessage = [
+  typeof MessageType.CLOSED,
+  SubscriptionId,
+  string,
+];
