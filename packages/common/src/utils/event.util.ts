@@ -1,4 +1,4 @@
-import { EventKind, EventType, TagName } from '../enums';
+import { EventKind, EventType, TagName } from '../constants';
 import { Event, Filter, Tag } from '../interfaces';
 import { schnorrVerify, sha256 } from './crypto.util';
 import { countPowDifficulty } from './proof-of-work.util';

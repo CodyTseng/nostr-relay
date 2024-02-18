@@ -1,4 +1,4 @@
-import { ClientReadyState } from '../enums';
+import { ClientReadyState } from '../constants';
 
 /**
  * Client interface. Usually a WebSocket.
