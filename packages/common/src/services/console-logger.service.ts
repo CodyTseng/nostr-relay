@@ -1,4 +1,4 @@
-import { LogLevel } from '../enums';
+import { LogLevel } from '../constants';
 import { Logger } from '../interfaces';
 
 export class ConsoleLoggerService implements Logger {

@@ -1,4 +1,4 @@
-import { LogLevel } from '../enums';
+import { LogLevel } from '../constants';
 
 export interface Logger {
   setLogLevel(level: LogLevel): void;

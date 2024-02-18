@@ -1,4 +1,4 @@
-import { EventKind } from '../enums';
+import { EventKind } from '../constants';
 import { Filter } from '../interfaces';
 
 export class FilterUtils {

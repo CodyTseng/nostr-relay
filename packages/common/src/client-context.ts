@@ -1,6 +1,6 @@
 import { randomUUID } from 'crypto';
 import { LRUCache } from 'lru-cache';
-import { ClientReadyState } from './enums/client.enum';
+import { ClientReadyState } from './constants';
 import { Client } from './interfaces/client.interface';
 import { Filter } from './interfaces/filter.interface';
 import { OutgoingMessage } from './interfaces/message.interface';
