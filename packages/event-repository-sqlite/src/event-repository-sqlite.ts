@@ -182,49 +182,48 @@ export class EventRepositorySqlite extends EventRepository {
     const whereClauses: string[] = [
       `g.tag IN (${mainGenericTagsFilter.map(() => '?').join(',')})`,
     ];
-    const whereValues: (string | number)[] = [...mainGenericTagsFilter];
+    const parameters: (string | number)[] = [...mainGenericTagsFilter];
 
     if (restGenericTagsCollection.length) {
       restGenericTagsCollection.forEach((genericTags, index) => {
         const alias = `g${index + 1}`;
         innerJoinClauses.push(
-          `INNER JOIN generic_tags ${alias} ON ${alias}.event_id = g.event_id`,
+          `INNER JOIN generic_tags ${alias} ON ${alias}.event_id = g.event_id AND ${alias}.tag IN (${genericTags
+            .map(() => '?')
+            .join(',')})`,
         );
-        whereClauses.push(
-          `${alias}.tag IN (${genericTags.map(() => '?').join(',')})`,
-        );
-        whereValues.push(...genericTags);
+        parameters.push(...genericTags);
       });
     }
 
     if (authors?.length) {
       whereClauses.push(`g.author IN (${authors.map(() => '?').join(',')})`);
-      whereValues.push(...authors);
+      parameters.push(...authors);
     }
 
     if (kinds?.length) {
       whereClauses.push(`g.kind IN (${kinds.map(() => '?').join(',')})`);
-      whereValues.push(...kinds);
+      parameters.push(...kinds);
     }
 
     if (since) {
       whereClauses.push(`g.created_at >= ?`);
-      whereValues.push(since);
+      parameters.push(since);
     }
 
     if (until) {
       whereClauses.push(`g.created_at <= ?`);
-      whereValues.push(until);
+      parameters.push(until);
     }
 
     const whereClause = `WHERE ${whereClauses.join(' AND ')}`;
     const rows = this.db
       .prepare(
-        `SELECT * FROM events WHERE id IN (SELECT DISTINCT g.event_id FROM generic_tags g LEFT JOIN events e ON g.event_id = e.id ${innerJoinClauses.join(
+        `SELECT * FROM events WHERE id IN (SELECT DISTINCT g.event_id FROM generic_tags g ${innerJoinClauses.join(
           ' ',
         )} ${whereClause} ORDER BY g.created_at DESC LIMIT ?) ORDER BY created_at DESC`,
       )
-      .all(whereValues.concat(this.applyLimit(limit)));
+      .all(parameters.concat(this.applyLimit(limit)));
 
     return rows.map(this.toEvent);
   }
