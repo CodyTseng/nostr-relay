@@ -219,9 +219,9 @@ export class EventRepositorySqlite extends EventRepository {
     const whereClause = `WHERE ${whereClauses.join(' AND ')}`;
     const rows = this.db
       .prepare(
-        `SELECT * FROM events WHERE id IN (SELECT DISTINCT g.event_id FROM generic_tags g ${innerJoinClauses.join(
+        `SELECT DISTINCT g.event_id, e.* FROM generic_tags g ${innerJoinClauses.join(
           ' ',
-        )} ${whereClause} ORDER BY g.created_at DESC LIMIT ?) ORDER BY created_at DESC`,
+        )} LEFT JOIN events e ON e.id = g.event_id ${whereClause} ORDER BY g.created_at DESC LIMIT ?`,
       )
       .all(parameters.concat(this.applyLimit(limit)));
 
