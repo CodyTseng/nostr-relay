@@ -221,7 +221,7 @@ export class EventRepositorySqlite extends EventRepository {
       .prepare(
         `SELECT DISTINCT g.event_id, e.* FROM generic_tags g ${innerJoinClauses.join(
           ' ',
-        )} LEFT JOIN events e ON e.id = g.event_id ${whereClause} ORDER BY g.created_at DESC LIMIT ?`,
+        )} RIGHT JOIN events e ON e.id = g.event_id ${whereClause} ORDER BY g.created_at DESC LIMIT ?`,
       )
       .all(parameters.concat(this.applyLimit(limit)));
 
