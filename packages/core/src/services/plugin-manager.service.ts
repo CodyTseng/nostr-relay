@@ -1,106 +1,137 @@
 import {
-  AfterEventBroadcast,
-  AfterEventHandle,
-  BeforeEventBroadcast,
-  BeforeEventHandle,
-  BeforeEventHandleResult,
-  BeforeHookResult,
   ClientContext,
   Event,
   EventHandleResult,
+  HandleMessageResult,
+  IncomingMessage,
   NostrRelayPlugin,
+  PostBroadcast,
+  PostHandleEvent,
+  PostHandleMessage,
+  PreBroadcast,
+  PreHandleEvent,
+  PreHandleMessage,
 } from '@nostr-relay/common';
 
 export class PluginManagerService {
-  private readonly beforeEventHandlePlugins: BeforeEventHandle[] = [];
-  private readonly afterEventHandlePlugins: AfterEventHandle[] = [];
-  private readonly beforeEventBroadcastPlugins: BeforeEventBroadcast[] = [];
-  private readonly afterEventBroadcastPlugins: AfterEventBroadcast[] = [];
+  private readonly preHandleMessagePlugins: PreHandleMessage[] = [];
+  private readonly postHandleMessagePlugins: PostHandleMessage[] = [];
+  private readonly preHandleEventPlugins: PreHandleEvent[] = [];
+  private readonly postHandleEventPlugins: PostHandleEvent[] = [];
+  private readonly preBroadcastPlugins: PreBroadcast[] = [];
+  private readonly postBroadcastPlugins: PostBroadcast[] = [];
 
   register(plugin: NostrRelayPlugin): void {
-    if (this.hasBeforeEventHandleHook(plugin)) {
-      this.beforeEventHandlePlugins.push(plugin);
+    if (this.hasPreHandleMessage(plugin)) {
+      this.preHandleMessagePlugins.push(plugin);
     }
-    if (this.hasAfterEventHandleHook(plugin)) {
-      this.afterEventHandlePlugins.unshift(plugin);
+    if (this.hasPostHandleMessage(plugin)) {
+      this.postHandleMessagePlugins.unshift(plugin);
     }
-    if (this.hasBeforeEventBroadcastHook(plugin)) {
-      this.beforeEventBroadcastPlugins.push(plugin);
+    if (this.hasPreHandleEvent(plugin)) {
+      this.preHandleEventPlugins.push(plugin);
     }
-    if (this.hasAfterEventBroadcastHook(plugin)) {
-      this.afterEventBroadcastPlugins.unshift(plugin);
+    if (this.hasPostHandleEvent(plugin)) {
+      this.postHandleEventPlugins.unshift(plugin);
+    }
+    if (this.hasPreBroadcast(plugin)) {
+      this.preBroadcastPlugins.push(plugin);
+    }
+    if (this.hasPostBroadcast(plugin)) {
+      this.postBroadcastPlugins.unshift(plugin);
     }
   }
 
-  async callBeforeEventHandleHooks(
+  async preHandleMessage(
+    ctx: ClientContext,
+    message: IncomingMessage,
+  ): Promise<IncomingMessage | null> {
+    let result: IncomingMessage | null = message;
+    for await (const plugin of this.preHandleMessagePlugins) {
+      result = await plugin.preHandleMessage(ctx, message);
+      if (!result) return null;
+    }
+    return result;
+  }
+
+  async postHandleMessage(
+    ctx: ClientContext,
+    message: IncomingMessage,
+    handleResult: HandleMessageResult,
+  ): Promise<void> {
+    for await (const plugin of this.postHandleMessagePlugins) {
+      await plugin.postHandleMessage(ctx, message, handleResult);
+    }
+  }
+
+  async preHandleEvent(
     ctx: ClientContext,
     event: Event,
-  ): Promise<BeforeEventHandleResult> {
-    for await (const plugin of this.beforeEventHandlePlugins) {
-      const result = await plugin.beforeEventHandle(ctx, event);
-      if (!result.canContinue) return result;
+  ): Promise<Event | null> {
+    let result: Event | null = event;
+    for await (const plugin of this.preHandleEventPlugins) {
+      result = await plugin.preHandleEvent(ctx, event);
+      if (!result) return null;
     }
-    return { canContinue: true };
+    return result;
   }
 
-  async callAfterEventHandleHooks(
+  async postHandleEvent(
     ctx: ClientContext,
     event: Event,
     handleResult: EventHandleResult,
   ): Promise<void> {
-    for await (const plugin of this.afterEventHandlePlugins) {
-      await plugin.afterEventHandle(ctx, event, handleResult);
+    for await (const plugin of this.postHandleEventPlugins) {
+      await plugin.postHandleEvent(ctx, event, handleResult);
     }
   }
 
-  async callBeforeEventBroadcastHooks(
-    ctx: ClientContext,
-    event: Event,
-  ): Promise<BeforeHookResult> {
-    for await (const plugin of this.beforeEventBroadcastPlugins) {
-      const result = await plugin.beforeEventBroadcast(ctx, event);
-      if (!result.canContinue) return result;
+  async preBroadcast(ctx: ClientContext, event: Event): Promise<Event | null> {
+    let result: Event | null = event;
+    for await (const plugin of this.preBroadcastPlugins) {
+      const result = await plugin.preBroadcast(ctx, event);
+      if (!result) return null;
     }
-    return { canContinue: true };
+    return result;
   }
 
-  async callAfterEventBroadcastHooks(
-    ctx: ClientContext,
-    event: Event,
-  ): Promise<void> {
-    for await (const plugin of this.afterEventBroadcastPlugins) {
-      await plugin.afterEventBroadcast(ctx, event);
+  async postBroadcast(ctx: ClientContext, event: Event): Promise<void> {
+    for await (const plugin of this.postBroadcastPlugins) {
+      await plugin.postBroadcast(ctx, event);
     }
   }
 
-  private hasBeforeEventHandleHook(
+  private hasPreHandleMessage(
     plugin: NostrRelayPlugin,
-  ): plugin is BeforeEventHandle {
+  ): plugin is PreHandleMessage {
+    return typeof (plugin as PreHandleMessage).preHandleMessage === 'function';
+  }
+
+  private hasPostHandleMessage(
+    plugin: NostrRelayPlugin,
+  ): plugin is PostHandleMessage {
     return (
-      typeof (plugin as BeforeEventHandle).beforeEventHandle === 'function'
+      typeof (plugin as PostHandleMessage).postHandleMessage === 'function'
     );
   }
 
-  private hasAfterEventHandleHook(
+  private hasPreHandleEvent(
     plugin: NostrRelayPlugin,
-  ): plugin is AfterEventHandle {
-    return typeof (plugin as AfterEventHandle).afterEventHandle === 'function';
+  ): plugin is PreHandleEvent {
+    return typeof (plugin as PreHandleEvent).preHandleEvent === 'function';
   }
 
-  private hasBeforeEventBroadcastHook(
+  private hasPostHandleEvent(
     plugin: NostrRelayPlugin,
-  ): plugin is BeforeEventBroadcast {
-    return (
-      typeof (plugin as BeforeEventBroadcast).beforeEventBroadcast ===
-      'function'
-    );
+  ): plugin is PostHandleEvent {
+    return typeof (plugin as PostHandleEvent).postHandleEvent === 'function';
   }
 
-  private hasAfterEventBroadcastHook(
-    plugin: NostrRelayPlugin,
-  ): plugin is AfterEventBroadcast {
-    return (
-      typeof (plugin as AfterEventBroadcast).afterEventBroadcast === 'function'
-    );
+  private hasPreBroadcast(plugin: NostrRelayPlugin): plugin is PreBroadcast {
+    return typeof (plugin as PreBroadcast).preBroadcast === 'function';
+  }
+
+  private hasPostBroadcast(plugin: NostrRelayPlugin): plugin is PostBroadcast {
+    return typeof (plugin as PostBroadcast).postBroadcast === 'function';
   }
 }

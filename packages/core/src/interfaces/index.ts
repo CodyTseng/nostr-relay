@@ -1,1 +1,1 @@
-export * from './handle-result.interface';
+export * from './options';

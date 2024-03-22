@@ -1,42 +1,53 @@
 import { ClientContext } from '../client-context';
 import { Event, EventHandleResult } from './event.interface';
+import { HandleMessageResult } from './handle-result.interface';
+import { IncomingMessage } from './message.interface';
 
 export type NostrRelayPlugin =
-  | BeforeEventHandle
-  | AfterEventHandle
-  | BeforeEventBroadcast
-  | AfterEventBroadcast;
+  | PreHandleMessage
+  | PostHandleMessage
+  | PreHandleEvent
+  | PostHandleEvent
+  | PreBroadcast
+  | PostBroadcast;
 
-export type BeforeHookResult<T = {}> =
-  | { canContinue: true }
-  | ({ canContinue: false } & T);
-
-export type BeforeEventHandleResult = BeforeHookResult<{
-  result: EventHandleResult;
-}>;
-
-export interface BeforeEventHandle {
-  beforeEventHandle(
+export interface PreHandleMessage {
+  preHandleMessage(
     ctx: ClientContext,
-    event: Event,
-  ): Promise<BeforeEventHandleResult> | BeforeEventHandleResult;
+    message: IncomingMessage,
+  ): Promise<IncomingMessage | null> | IncomingMessage | null;
 }
 
-export interface AfterEventHandle {
-  afterEventHandle(
+export interface PostHandleMessage {
+  postHandleMessage(
+    ctx: ClientContext,
+    message: IncomingMessage,
+    handleResult: HandleMessageResult,
+  ): Promise<void> | void;
+}
+
+export interface PreHandleEvent {
+  preHandleEvent(
+    ctx: ClientContext,
+    event: Event,
+  ): Promise<Event | null> | Event | null;
+}
+
+export interface PostHandleEvent {
+  postHandleEvent(
     ctx: ClientContext,
     event: Event,
     handleResult: EventHandleResult,
   ): Promise<void> | void;
 }
 
-export interface BeforeEventBroadcast {
-  beforeEventBroadcast(
+export interface PreBroadcast {
+  preBroadcast(
     ctx: ClientContext,
     event: Event,
-  ): Promise<BeforeHookResult> | BeforeHookResult;
+  ): Promise<Event | null> | Event | null;
 }
 
-export interface AfterEventBroadcast {
-  afterEventBroadcast(ctx: ClientContext, event: Event): Promise<void> | void;
+export interface PostBroadcast {
+  postBroadcast(ctx: ClientContext, event: Event): Promise<void> | void;
 }

@@ -14,15 +14,13 @@ import {
   MessageType,
   NostrRelayPlugin,
   SubscriptionId,
-} from '@nostr-relay/common';
-import {
   HandleAuthMessageResult,
   HandleCloseMessageResult,
   HandleEventMessageResult,
   HandleMessageResult,
   HandleReqMessageResult,
-  NostrRelayOptions,
-} from './interfaces';
+} from '@nostr-relay/common';
+import { NostrRelayOptions } from './interfaces';
 import { EventService } from './services/event.service';
 import { PluginManagerService } from './services/plugin-manager.service';
 import { SubscriptionService } from './services/subscription.service';
@@ -138,15 +136,21 @@ export class NostrRelay {
    */
   async handleMessage(
     client: Client,
-    message: IncomingMessage,
+    msg: IncomingMessage,
   ): Promise<HandleMessageResult> {
+    const ctx = this.getClientContext(client);
+    const message = await this.pluginManagerService.preHandleMessage(ctx, msg);
+    if (!message) return;
+
     if (message[0] === MessageType.EVENT) {
       const [, event] = message;
       const result = await this.handleEventMessage(client, event);
-      return {
+      const handleResult = {
         messageType: MessageType.EVENT,
         ...result,
       };
+      await this.pluginManagerService.postHandleMessage(ctx, msg, handleResult);
+      return handleResult;
     }
     if (message[0] === MessageType.REQ) {
       const [, subscriptionId, ...filters] = message;
@@ -155,31 +159,36 @@ export class NostrRelay {
         subscriptionId,
         filters,
       );
-      return {
+      const handleResult = {
         messageType: MessageType.REQ,
         ...result,
       };
+      await this.pluginManagerService.postHandleMessage(ctx, msg, handleResult);
+      return handleResult;
     }
     if (message[0] === MessageType.CLOSE) {
       const [, subscriptionId] = message;
       const result = this.handleCloseMessage(client, subscriptionId);
-      return {
+      const handleResult = {
         messageType: MessageType.CLOSE,
         ...result,
       };
+      await this.pluginManagerService.postHandleMessage(ctx, msg, handleResult);
+      return handleResult;
     }
     if (message[0] === MessageType.AUTH) {
       const [, signedEvent] = message;
       const result = this.handleAuthMessage(client, signedEvent);
-      return {
+      const handleResult = {
         messageType: MessageType.AUTH,
         ...result,
       };
+      await this.pluginManagerService.postHandleMessage(ctx, msg, handleResult);
     }
-    const ctx = this.getClientContext(client);
     ctx.sendMessage(
       createOutgoingNoticeMessage('invalid: unknown message type'),
     );
+    await this.pluginManagerService.postHandleMessage(ctx, msg);
   }
 
   /**
@@ -194,19 +203,12 @@ export class NostrRelay {
   ): Promise<HandleEventMessageResult> {
     const ctx = this.getClientContext(client);
     const callback = async (): Promise<EventHandleResult> => {
-      const hookResult =
-        await this.pluginManagerService.callBeforeEventHandleHooks(ctx, event);
-      if (!hookResult.canContinue) {
-        return hookResult.result;
-      }
+      const e = await this.pluginManagerService.preHandleEvent(ctx, event);
+      if (!e) return { success: false, noReplyNeeded: true };
 
-      const handleResult = await this.eventService.handleEvent(ctx, event);
+      const handleResult = await this.eventService.handleEvent(ctx, e);
 
-      await this.pluginManagerService.callAfterEventHandleHooks(
-        ctx,
-        event,
-        handleResult,
-      );
+      await this.pluginManagerService.postHandleEvent(ctx, e, handleResult);
 
       return handleResult;
     };

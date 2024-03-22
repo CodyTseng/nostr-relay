@@ -3,6 +3,7 @@ export * from './common.interface';
 export * from './event-repository.interface';
 export * from './event.interface';
 export * from './filter.interface';
+export * from './handle-result.interface';
 export * from './logger.interface';
 export * from './message.interface';
 export * from './plugin.interface';

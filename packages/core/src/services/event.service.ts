@@ -165,14 +165,13 @@ export class EventService {
     return !!exists;
   }
 
-  private async broadcast(ctx: ClientContext, event: Event): Promise<void> {
-    const hookResult =
-      await this.pluginManagerService.callBeforeEventBroadcastHooks(ctx, event);
-    if (!hookResult.canContinue) return;
+  private async broadcast(ctx: ClientContext, e: Event): Promise<void> {
+    const event = await this.pluginManagerService.preBroadcast(ctx, e);
+    if (!event) return;
 
     await this.subscriptionService.broadcast(event);
 
-    await this.pluginManagerService.callAfterEventBroadcastHooks(ctx, event);
+    await this.pluginManagerService.postBroadcast(ctx, event);
   }
 
   private mergeSortedEventArrays(arrays: Event[][]): Event[] {
