@@ -21,7 +21,7 @@ describe('eventService', () => {
 
   beforeEach(() => {
     eventRepository = {
-      isSearchSupported: false,
+      isSearchSupported: jest.fn().mockReturnValue(false),
       upsert: jest.fn(),
       find: jest.fn(),
       findOne: jest.fn(),

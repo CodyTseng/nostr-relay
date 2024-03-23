@@ -20,6 +20,10 @@ export class EventRepositorySqlite extends EventRepository {
     this.migrate();
   }
 
+  isSearchSupported(): boolean {
+    return false;
+  }
+
   close(): void {
     this.db.close();
   }

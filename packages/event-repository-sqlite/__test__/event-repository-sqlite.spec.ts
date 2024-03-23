@@ -16,6 +16,12 @@ describe('EventRepositorySqlite', () => {
     eventRepository.close();
   });
 
+  describe('isSearchSupported', () => {
+    it('should return false', () => {
+      expect(eventRepository.isSearchSupported()).toBe(false);
+    });
+  });
+
   describe('upsert', () => {
     it('should insert a new event', async () => {
       const eventA = createEvent({

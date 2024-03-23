@@ -123,7 +123,7 @@ export class EventService {
     const callback = async (): Promise<Event[]> => {
       if (
         filter.search !== undefined &&
-        !this.eventRepository.isSearchSupported
+        !this.eventRepository.isSearchSupported()
       ) {
         return [];
       }

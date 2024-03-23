@@ -19,9 +19,9 @@ export interface EventRepositoryUpsertResult {
  */
 export abstract class EventRepository {
   /**
-   * This property indicates whether the search feature is supported.
+   * Whether the search feature is supported.
    */
-  readonly isSearchSupported: boolean = false;
+  abstract isSearchSupported(): boolean;
 
   /**
    * This method is called when a new event should be stored. You should handle
