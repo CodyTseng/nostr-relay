@@ -3,26 +3,24 @@ import {
   ClientContext,
   ConsoleLoggerService,
   Event,
-  EventHandleResult,
   EventId,
   EventRepository,
   EventUtils,
   Filter,
   FilterUtils,
-  IncomingMessage,
-  LogLevel,
-  MessageType,
-  NostrRelayPlugin,
-  SubscriptionId,
-} from '@nostr-relay/common';
-import {
   HandleAuthMessageResult,
   HandleCloseMessageResult,
   HandleEventMessageResult,
+  HandleEventResult,
   HandleMessageResult,
   HandleReqMessageResult,
+  IncomingMessage,
+  LogLevel,
+  MessageType,
   NostrRelayOptions,
-} from './interfaces';
+  NostrRelayPlugin,
+  SubscriptionId,
+} from '@nostr-relay/common';
 import { EventService } from './services/event.service';
 import { PluginManagerService } from './services/plugin-manager.service';
 import { SubscriptionService } from './services/subscription.service';
@@ -41,7 +39,7 @@ export class NostrRelay {
   private readonly eventService: EventService;
   private readonly subscriptionService: SubscriptionService;
   private readonly eventHandlingLazyCache:
-    | LazyCache<EventId, Promise<EventHandleResult>>
+    | LazyCache<EventId, Promise<HandleEventResult>>
     | undefined;
   private readonly domain?: string;
   private readonly pluginManagerService: PluginManagerService;
@@ -140,6 +138,19 @@ export class NostrRelay {
     client: Client,
     message: IncomingMessage,
   ): Promise<HandleMessageResult> {
+    const ctx = this.getClientContext(client);
+    return await this.pluginManagerService.handleMessage(
+      ctx,
+      message,
+      this._handleMessage.bind(this),
+    );
+  }
+
+  private async _handleMessage(
+    ctx: ClientContext,
+    message: IncomingMessage,
+  ): Promise<HandleMessageResult> {
+    const client = ctx.client;
     if (message[0] === MessageType.EVENT) {
       const [, event] = message;
       const result = await this.handleEventMessage(client, event);
@@ -176,7 +187,6 @@ export class NostrRelay {
         ...result,
       };
     }
-    const ctx = this.getClientContext(client);
     ctx.sendMessage(
       createOutgoingNoticeMessage('invalid: unknown message type'),
     );
@@ -193,22 +203,8 @@ export class NostrRelay {
     event: Event,
   ): Promise<HandleEventMessageResult> {
     const ctx = this.getClientContext(client);
-    const callback = async (): Promise<EventHandleResult> => {
-      const hookResult =
-        await this.pluginManagerService.callBeforeEventHandleHooks(ctx, event);
-      if (!hookResult.canContinue) {
-        return hookResult.result;
-      }
-
-      const handleResult = await this.eventService.handleEvent(ctx, event);
-
-      await this.pluginManagerService.callAfterEventHandleHooks(
-        ctx,
-        event,
-        handleResult,
-      );
-
-      return handleResult;
+    const callback = (): Promise<HandleEventResult> => {
+      return this.eventService.handleEvent(ctx, event);
     };
 
     const handleResult = this.eventHandlingLazyCache

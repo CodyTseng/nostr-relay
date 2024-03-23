@@ -10,7 +10,7 @@ export interface Event {
   sig: Signature;
 }
 
-export type EventHandleResult = {
+export type HandleEventResult = {
   success: boolean;
   message?: string;
   noReplyNeeded?: boolean;

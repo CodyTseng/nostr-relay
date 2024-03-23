@@ -1,106 +1,93 @@
 import {
-  AfterEventBroadcast,
-  AfterEventHandle,
-  BeforeEventBroadcast,
-  BeforeEventHandle,
-  BeforeEventHandleResult,
-  BeforeHookResult,
+  BroadcastMiddleware,
   ClientContext,
   Event,
-  EventHandleResult,
+  HandleMessageMiddleware,
+  HandleMessageResult,
+  IncomingMessage,
+  KeysOfUnion,
   NostrRelayPlugin,
 } from '@nostr-relay/common';
 
 export class PluginManagerService {
-  private readonly beforeEventHandlePlugins: BeforeEventHandle[] = [];
-  private readonly afterEventHandlePlugins: AfterEventHandle[] = [];
-  private readonly beforeEventBroadcastPlugins: BeforeEventBroadcast[] = [];
-  private readonly afterEventBroadcastPlugins: AfterEventBroadcast[] = [];
+  private readonly handleMessageMiddlewares: HandleMessageMiddleware[] = [];
+  private readonly broadcastMiddlewares: BroadcastMiddleware[] = [];
 
-  register(plugin: NostrRelayPlugin): void {
-    if (this.hasBeforeEventHandleHook(plugin)) {
-      this.beforeEventHandlePlugins.push(plugin);
-    }
-    if (this.hasAfterEventHandleHook(plugin)) {
-      this.afterEventHandlePlugins.unshift(plugin);
-    }
-    if (this.hasBeforeEventBroadcastHook(plugin)) {
-      this.beforeEventBroadcastPlugins.push(plugin);
-    }
-    if (this.hasAfterEventBroadcastHook(plugin)) {
-      this.afterEventBroadcastPlugins.unshift(plugin);
-    }
+  register(...plugins: NostrRelayPlugin[]): PluginManagerService {
+    plugins.forEach(plugin => {
+      if (this.hasHandleMessageMiddleware(plugin)) {
+        this.handleMessageMiddlewares.push(plugin);
+      }
+      if (this.hasBroadcastMiddleware(plugin)) {
+        this.broadcastMiddlewares.push(plugin);
+      }
+    });
+    return this;
   }
 
-  async callBeforeEventHandleHooks(
+  async handleMessage(
     ctx: ClientContext,
-    event: Event,
-  ): Promise<BeforeEventHandleResult> {
-    for await (const plugin of this.beforeEventHandlePlugins) {
-      const result = await plugin.beforeEventHandle(ctx, event);
-      if (!result.canContinue) return result;
-    }
-    return { canContinue: true };
+    message: IncomingMessage,
+    next: (
+      ctx: ClientContext,
+      message: IncomingMessage,
+    ) => Promise<HandleMessageResult>,
+  ): Promise<HandleMessageResult> {
+    return this.compose(
+      this.handleMessageMiddlewares,
+      'handleMessage',
+      next,
+      ctx,
+      message,
+    );
   }
 
-  async callAfterEventHandleHooks(
+  async broadcast(
     ctx: ClientContext,
     event: Event,
-    handleResult: EventHandleResult,
+    next: (ctx: ClientContext, event: Event) => Promise<void>,
   ): Promise<void> {
-    for await (const plugin of this.afterEventHandlePlugins) {
-      await plugin.afterEventHandle(ctx, event, handleResult);
-    }
-  }
-
-  async callBeforeEventBroadcastHooks(
-    ctx: ClientContext,
-    event: Event,
-  ): Promise<BeforeHookResult> {
-    for await (const plugin of this.beforeEventBroadcastPlugins) {
-      const result = await plugin.beforeEventBroadcast(ctx, event);
-      if (!result.canContinue) return result;
-    }
-    return { canContinue: true };
-  }
-
-  async callAfterEventBroadcastHooks(
-    ctx: ClientContext,
-    event: Event,
-  ): Promise<void> {
-    for await (const plugin of this.afterEventBroadcastPlugins) {
-      await plugin.afterEventBroadcast(ctx, event);
-    }
-  }
-
-  private hasBeforeEventHandleHook(
-    plugin: NostrRelayPlugin,
-  ): plugin is BeforeEventHandle {
-    return (
-      typeof (plugin as BeforeEventHandle).beforeEventHandle === 'function'
+    return this.compose(
+      this.broadcastMiddlewares,
+      'broadcast',
+      next,
+      ctx,
+      event,
     );
   }
 
-  private hasAfterEventHandleHook(
-    plugin: NostrRelayPlugin,
-  ): plugin is AfterEventHandle {
-    return typeof (plugin as AfterEventHandle).afterEventHandle === 'function';
+  private compose<R>(
+    plugins: NostrRelayPlugin[],
+    funcName: KeysOfUnion<NostrRelayPlugin>,
+    next: (...args: any[]) => Promise<R>,
+    ...args: any[]
+  ): Promise<R> {
+    let index = -1;
+    async function dispatch(i: number): Promise<R> {
+      if (i <= index) {
+        throw new Error('next() called multiple times');
+      }
+      index = i;
+      const middleware = plugins[i]?.[funcName];
+      if (!middleware) {
+        return next(...args);
+      }
+      return middleware(...args, dispatch.bind(null, i + 1));
+    }
+    return dispatch(0);
   }
 
-  private hasBeforeEventBroadcastHook(
+  private hasHandleMessageMiddleware(
     plugin: NostrRelayPlugin,
-  ): plugin is BeforeEventBroadcast {
+  ): plugin is HandleMessageMiddleware {
     return (
-      typeof (plugin as BeforeEventBroadcast).beforeEventBroadcast ===
-      'function'
+      typeof (plugin as HandleMessageMiddleware).handleMessage === 'function'
     );
   }
 
-  private hasAfterEventBroadcastHook(
+  private hasBroadcastMiddleware(
     plugin: NostrRelayPlugin,
-  ): plugin is AfterEventBroadcast {
-    return (
-      typeof (plugin as AfterEventBroadcast).afterEventBroadcast === 'function'
-    );
+  ): plugin is BroadcastMiddleware {
+    return typeof (plugin as BroadcastMiddleware).broadcast === 'function';
   }
 }

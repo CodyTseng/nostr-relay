@@ -81,11 +81,6 @@ describe('NostrRelay', () => {
         '',
       ];
 
-      const mockPlugin = {
-        beforeEventHandle: jest.fn().mockReturnValue({ canContinue: true }),
-        afterEventHandle: jest.fn().mockReturnValue(handleResult),
-      };
-      nostrRelay.register(mockPlugin);
       const mockHandleEvent = jest
         .spyOn(nostrRelay['eventService'], 'handleEvent')
         .mockResolvedValue(handleResult);
@@ -93,12 +88,6 @@ describe('NostrRelay', () => {
 
       await nostrRelay.handleEventMessage(client, event);
 
-      expect(mockPlugin.beforeEventHandle).toHaveBeenCalledWith(ctx, event);
-      expect(mockPlugin.afterEventHandle).toHaveBeenCalledWith(
-        ctx,
-        event,
-        handleResult,
-      );
       expect(mockHandleEvent).toHaveBeenCalledWith(ctx, event);
       expect(client.send).toHaveBeenCalledWith(JSON.stringify(outgoingMessage));
     });
@@ -155,19 +144,6 @@ describe('NostrRelay', () => {
       expect(client.send).toHaveBeenCalledTimes(2);
       expect(client.send).toHaveBeenNthCalledWith(1, outgoingMessageStr);
       expect(client.send).toHaveBeenNthCalledWith(2, outgoingMessageStr);
-    });
-
-    it('should not handle event due to plugin prevention', async () => {
-      jest
-        .spyOn(nostrRelay['pluginManagerService'], 'callBeforeEventHandleHooks')
-        .mockResolvedValue({ canContinue: false, result: {} as any });
-      const mockHandleEvent = jest
-        .spyOn(nostrRelay['eventService'], 'handleEvent')
-        .mockResolvedValue({ success: true });
-
-      await nostrRelay.handleEventMessage(client, { id: 'eventId' } as Event);
-
-      expect(mockHandleEvent).not.toHaveBeenCalled();
     });
   });
 

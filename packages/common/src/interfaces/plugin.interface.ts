@@ -1,42 +1,22 @@
 import { ClientContext } from '../client-context';
-import { Event, EventHandleResult } from './event.interface';
+import { Event } from './event.interface';
+import { HandleMessageResult } from './handle-result.interface';
+import { IncomingMessage } from './message.interface';
 
-export type NostrRelayPlugin =
-  | BeforeEventHandle
-  | AfterEventHandle
-  | BeforeEventBroadcast
-  | AfterEventBroadcast;
+export type NostrRelayPlugin = HandleMessageMiddleware | BroadcastMiddleware;
 
-export type BeforeHookResult<T = {}> =
-  | { canContinue: true }
-  | ({ canContinue: false } & T);
-
-export type BeforeEventHandleResult = BeforeHookResult<{
-  result: EventHandleResult;
-}>;
-
-export interface BeforeEventHandle {
-  beforeEventHandle(
+export interface HandleMessageMiddleware {
+  handleMessage(
     ctx: ClientContext,
-    event: Event,
-  ): Promise<BeforeEventHandleResult> | BeforeEventHandleResult;
+    message: IncomingMessage,
+    next: () => Promise<HandleMessageResult>,
+  ): Promise<HandleMessageResult> | HandleMessageResult;
 }
 
-export interface AfterEventHandle {
-  afterEventHandle(
+export interface BroadcastMiddleware {
+  broadcast(
     ctx: ClientContext,
     event: Event,
-    handleResult: EventHandleResult,
+    next: () => Promise<void>,
   ): Promise<void> | void;
-}
-
-export interface BeforeEventBroadcast {
-  beforeEventBroadcast(
-    ctx: ClientContext,
-    event: Event,
-  ): Promise<BeforeHookResult> | BeforeHookResult;
-}
-
-export interface AfterEventBroadcast {
-  afterEventBroadcast(ctx: ClientContext, event: Event): Promise<void> | void;
 }
