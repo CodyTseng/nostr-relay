@@ -63,33 +63,36 @@ describe('PluginManagerService', () => {
       const arr: number[] = [];
       pluginManagerService.register(
         {
-          handleMessage: async (ctx, message, next) => {
+          handleMessage: async (_ctx, _message, next) => {
             arr.push(1);
-            const result = await next(ctx, message);
+            const result = await next();
             arr.push(5);
             return result;
           },
         },
         {
-          handleMessage: async (ctx, message, next) => {
+          handleMessage: async (_ctx, _message, next) => {
             arr.push(2);
-            const result = await next(ctx, message);
+            const result = await next();
             arr.push(4);
             return result;
           },
         },
       );
+      const mockNext = jest.fn().mockImplementation(async () => {
+        arr.push(3);
+        return { messageType: 'EVENT', success: true };
+      });
 
       await pluginManagerService.handleMessage(
         ctx,
         {} as IncomingMessage,
-        async () => {
-          arr.push(3);
-          return { messageType: 'EVENT', success: true };
-        },
+        mockNext,
       );
 
       expect(arr).toEqual([1, 2, 3, 4, 5]);
+      expect(mockNext).toHaveBeenCalledTimes(1);
+      expect(mockNext).toHaveBeenCalledWith(ctx, {});
     });
 
     it('should directly return if middleware does not call next', async () => {
@@ -112,9 +115,9 @@ describe('PluginManagerService', () => {
 
     it('should throw error if next() called multiple times', async () => {
       pluginManagerService.register({
-        handleMessage: async (ctx, message, next) => {
-          await next(ctx, message);
-          await next(ctx, message);
+        handleMessage: async (_ctx, _message, next) => {
+          await next();
+          await next();
         },
       });
 
@@ -133,16 +136,16 @@ describe('PluginManagerService', () => {
       const arr: number[] = [];
       pluginManagerService.register(
         {
-          broadcast: async (ctx, event, next) => {
+          broadcast: async (_ctx, _message, next) => {
             arr.push(1);
-            await next(ctx, event);
+            await next();
             arr.push(5);
           },
         },
         {
-          broadcast: async (ctx, event, next) => {
+          broadcast: async (_ctx, _message, next) => {
             arr.push(2);
-            await next(ctx, event);
+            await next();
             arr.push(4);
           },
         },

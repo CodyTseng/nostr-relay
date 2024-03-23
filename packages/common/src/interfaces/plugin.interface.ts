@@ -9,10 +9,7 @@ export interface HandleMessageMiddleware {
   handleMessage(
     ctx: ClientContext,
     message: IncomingMessage,
-    next: (
-      ctx: ClientContext,
-      message: IncomingMessage,
-    ) => Promise<HandleMessageResult>,
+    next: () => Promise<HandleMessageResult>,
   ): Promise<HandleMessageResult> | HandleMessageResult;
 }
 
@@ -20,6 +17,6 @@ export interface BroadcastMiddleware {
   broadcast(
     ctx: ClientContext,
     event: Event,
-    next: (ctx: ClientContext, event: Event) => Promise<void>,
+    next: () => Promise<void>,
   ): Promise<void> | void;
 }
