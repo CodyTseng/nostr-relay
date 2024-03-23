@@ -200,17 +200,6 @@ export class NostrRelay {
     event: Event,
   ): Promise<HandleEventMessageResult> {
     const ctx = this.getClientContext(client);
-    return await this.pluginManagerService.handleEvent(
-      ctx,
-      event,
-      this._handleEventMessage.bind(this),
-    );
-  }
-
-  private async _handleEventMessage(
-    ctx: ClientContext,
-    event: Event,
-  ): Promise<HandleEventMessageResult> {
     const callback = () => this.eventService.handleEvent(ctx, event);
 
     const handleResult = this.eventHandlingLazyCache

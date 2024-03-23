@@ -22,7 +22,6 @@ describe('PluginManagerService', () => {
     it('should register plugin', () => {
       const plugin = {
         handleMessage: jest.fn(),
-        handleEvent: jest.fn(),
         broadcast: jest.fn(),
       };
 
@@ -31,7 +30,6 @@ describe('PluginManagerService', () => {
       expect(pluginManagerService['handleMessageMiddlewares']).toEqual([
         plugin,
       ]);
-      expect(pluginManagerService['handleEventMiddlewares']).toEqual([plugin]);
       expect(pluginManagerService['broadcastMiddlewares']).toEqual([plugin]);
     });
 
@@ -40,32 +38,22 @@ describe('PluginManagerService', () => {
         handleMessage: jest.fn(),
       };
       const plugin2 = {
-        handleEvent: jest.fn(),
-      };
-      const plugin3 = {
         broadcast: jest.fn(),
       };
-      const plugin4 = {
+      const plugin3 = {
         handleMessage: jest.fn(),
-        handleEvent: jest.fn(),
         broadcast: jest.fn(),
       };
 
-      pluginManagerService
-        .register(plugin1, plugin2, plugin3)
-        .register(plugin4);
+      pluginManagerService.register(plugin1, plugin2).register(plugin3);
 
       expect(pluginManagerService['handleMessageMiddlewares']).toEqual([
         plugin1,
-        plugin4,
-      ]);
-      expect(pluginManagerService['handleEventMiddlewares']).toEqual([
-        plugin2,
-        plugin4,
+        plugin3,
       ]);
       expect(pluginManagerService['broadcastMiddlewares']).toEqual([
+        plugin2,
         plugin3,
-        plugin4,
       ]);
     });
   });
@@ -137,37 +125,6 @@ describe('PluginManagerService', () => {
           async () => {},
         ),
       ).rejects.toThrow('next() called multiple times');
-    });
-  });
-
-  describe('handleEvent', () => {
-    it('should call middlewares in order', async () => {
-      const arr: number[] = [];
-      pluginManagerService.register(
-        {
-          handleEvent: async (ctx, event, next) => {
-            arr.push(1);
-            const result = await next(ctx, event);
-            arr.push(5);
-            return result;
-          },
-        },
-        {
-          handleEvent: async (ctx, event, next) => {
-            arr.push(2);
-            const result = await next(ctx, event);
-            arr.push(4);
-            return result;
-          },
-        },
-      );
-
-      await pluginManagerService.handleEvent(ctx, {} as Event, async () => {
-        arr.push(3);
-        return { success: true };
-      });
-
-      expect(arr).toEqual([1, 2, 3, 4, 5]);
     });
   });
 

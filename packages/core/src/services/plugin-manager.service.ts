@@ -2,8 +2,6 @@ import {
   BroadcastMiddleware,
   ClientContext,
   Event,
-  HandleEventMiddleware,
-  HandleEventResult,
   HandleMessageMiddleware,
   HandleMessageResult,
   IncomingMessage,
@@ -13,16 +11,12 @@ import {
 
 export class PluginManagerService {
   private readonly handleMessageMiddlewares: HandleMessageMiddleware[] = [];
-  private readonly handleEventMiddlewares: HandleEventMiddleware[] = [];
   private readonly broadcastMiddlewares: BroadcastMiddleware[] = [];
 
   register(...plugins: NostrRelayPlugin[]): PluginManagerService {
     plugins.forEach(plugin => {
       if (this.hasHandleMessageMiddleware(plugin)) {
         this.handleMessageMiddlewares.push(plugin);
-      }
-      if (this.hasHandleEventMiddleware(plugin)) {
-        this.handleEventMiddlewares.push(plugin);
       }
       if (this.hasBroadcastMiddleware(plugin)) {
         this.broadcastMiddlewares.push(plugin);
@@ -45,20 +39,6 @@ export class PluginManagerService {
       next,
       ctx,
       message,
-    );
-  }
-
-  async handleEvent(
-    ctx: ClientContext,
-    event: Event,
-    next: (ctx: ClientContext, event: Event) => Promise<HandleEventResult>,
-  ): Promise<HandleEventResult> {
-    return this.compose(
-      this.handleEventMiddlewares,
-      'handleEvent',
-      next,
-      ctx,
-      event,
     );
   }
 
@@ -103,12 +83,6 @@ export class PluginManagerService {
     return (
       typeof (plugin as HandleMessageMiddleware).handleMessage === 'function'
     );
-  }
-
-  private hasHandleEventMiddleware(
-    plugin: NostrRelayPlugin,
-  ): plugin is HandleEventMiddleware {
-    return typeof (plugin as HandleEventMiddleware).handleEvent === 'function';
   }
 
   private hasBroadcastMiddleware(
