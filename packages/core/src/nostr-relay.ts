@@ -258,8 +258,6 @@ export class NostrRelay {
       return { events };
     }
 
-    this.subscriptionService.subscribe(ctx, subscriptionId, filters);
-
     (await this.eventService.find(filters)).forEach(event => {
       if (this.domain && !EventUtils.checkPermission(event, ctx.pubkey)) {
         return;
@@ -270,6 +268,7 @@ export class NostrRelay {
     });
 
     ctx.sendMessage(createOutgoingEoseMessage(subscriptionId));
+    this.subscriptionService.subscribe(ctx, subscriptionId, filters);
 
     return { events };
   }
