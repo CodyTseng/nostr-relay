@@ -1,53 +1,36 @@
 import { ClientContext } from '../client-context';
-import { Event, EventHandleResult } from './event.interface';
+import { Event, HandleEventResult } from './event.interface';
 import { HandleMessageResult } from './handle-result.interface';
 import { IncomingMessage } from './message.interface';
 
 export type NostrRelayPlugin =
-  | PreHandleMessage
-  | PostHandleMessage
-  | PreHandleEvent
-  | PostHandleEvent
-  | PreBroadcast
-  | PostBroadcast;
+  | HandleMessageMiddleware
+  | HandleEventMiddleware
+  | BroadcastMiddleware;
 
-export interface PreHandleMessage {
-  preHandleMessage(
+export interface HandleMessageMiddleware {
+  handleMessage(
     ctx: ClientContext,
     message: IncomingMessage,
-  ): Promise<IncomingMessage | null> | IncomingMessage | null;
+    next: (
+      ctx: ClientContext,
+      message: IncomingMessage,
+    ) => Promise<HandleMessageResult>,
+  ): Promise<HandleMessageResult> | HandleMessageResult;
 }
 
-export interface PostHandleMessage {
-  postHandleMessage(
+export interface HandleEventMiddleware {
+  handleEvent(
     ctx: ClientContext,
-    message: IncomingMessage,
-    handleResult: HandleMessageResult,
+    event: Event,
+    next: (ctx: ClientContext, event: Event) => Promise<HandleEventResult>,
+  ): Promise<HandleEventResult> | HandleEventResult;
+}
+
+export interface BroadcastMiddleware {
+  broadcast(
+    ctx: ClientContext,
+    event: Event,
+    next: (ctx: ClientContext, event: Event) => Promise<void>,
   ): Promise<void> | void;
-}
-
-export interface PreHandleEvent {
-  preHandleEvent(
-    ctx: ClientContext,
-    event: Event,
-  ): Promise<Event | null> | Event | null;
-}
-
-export interface PostHandleEvent {
-  postHandleEvent(
-    ctx: ClientContext,
-    event: Event,
-    handleResult: EventHandleResult,
-  ): Promise<void> | void;
-}
-
-export interface PreBroadcast {
-  preBroadcast(
-    ctx: ClientContext,
-    event: Event,
-  ): Promise<Event | null> | Event | null;
-}
-
-export interface PostBroadcast {
-  postBroadcast(ctx: ClientContext, event: Event): Promise<void> | void;
 }

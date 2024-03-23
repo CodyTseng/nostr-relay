@@ -1,4 +1,5 @@
-import { LogLevel, Logger } from '@nostr-relay/common';
+import { LogLevel } from '../constants';
+import { Logger } from './logger.interface';
 
 /**
  * Options for NostrRelay

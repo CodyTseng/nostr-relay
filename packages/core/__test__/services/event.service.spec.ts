@@ -132,35 +132,13 @@ describe('eventService', () => {
 
     it('should handle ephemeral event successfully', async () => {
       const event = { id: 'a', kind: EventKind.EPHEMERAL_FIRST } as Event;
-      const mockPreBroadcast = jest
-        .spyOn(eventService['pluginManagerService'], 'preBroadcast')
-        .mockResolvedValue(event);
-      const mockPostBroadcast = jest
-        .spyOn(eventService['pluginManagerService'], 'postBroadcast')
-        .mockImplementation();
       jest.spyOn(EventUtils, 'validate').mockReturnValue(undefined);
 
       expect(await eventService.handleEvent(ctx, event)).toEqual({
         noReplyNeeded: true,
         success: true,
       });
-      expect(mockPreBroadcast).toHaveBeenCalledWith(ctx, event);
-      expect(mockPostBroadcast).toHaveBeenCalledWith(ctx, event);
       expect(subscriptionService.broadcast).toHaveBeenCalledWith(event);
-    });
-
-    it('should not broadcast due to plugin prevention', async () => {
-      jest
-        .spyOn(eventService['pluginManagerService'], 'preBroadcast')
-        .mockResolvedValue(null);
-      jest.spyOn(EventUtils, 'validate').mockReturnValue(undefined);
-
-      const event = { id: 'a', kind: EventKind.EPHEMERAL_FIRST } as Event;
-      expect(await eventService.handleEvent(ctx, event)).toEqual({
-        noReplyNeeded: true,
-        success: true,
-      });
-      expect(subscriptionService.broadcast).not.toHaveBeenCalled();
     });
 
     it('should handle regular event successfully', async () => {

@@ -1,12 +1,12 @@
 import {
   ClientContext,
   Event,
-  EventHandleResult,
   EventKind,
   EventRepository,
   EventType,
   EventUtils,
   Filter,
+  HandleEventResult,
   Logger,
 } from '@nostr-relay/common';
 import { LazyCache } from '../utils';
@@ -66,7 +66,7 @@ export class EventService {
   async handleEvent(
     ctx: ClientContext,
     event: Event,
-  ): Promise<EventHandleResult> {
+  ): Promise<HandleEventResult> {
     if (event.kind === EventKind.AUTHENTICATION) {
       return { success: true, noReplyNeeded: true };
     }
@@ -138,7 +138,7 @@ export class EventService {
   private async handleEphemeralEvent(
     ctx: ClientContext,
     event: Event,
-  ): Promise<EventHandleResult> {
+  ): Promise<HandleEventResult> {
     await this.broadcast(ctx, event);
     return { noReplyNeeded: true, success: true };
   }
@@ -146,7 +146,7 @@ export class EventService {
   private async handleRegularEvent(
     ctx: ClientContext,
     event: Event,
-  ): Promise<EventHandleResult> {
+  ): Promise<HandleEventResult> {
     const { isDuplicate } = await this.eventRepository.upsert(event);
 
     if (!isDuplicate) {
@@ -165,13 +165,10 @@ export class EventService {
     return !!exists;
   }
 
-  private async broadcast(ctx: ClientContext, e: Event): Promise<void> {
-    const event = await this.pluginManagerService.preBroadcast(ctx, e);
-    if (!event) return;
-
-    await this.subscriptionService.broadcast(event);
-
-    await this.pluginManagerService.postBroadcast(ctx, event);
+  private async broadcast(ctx: ClientContext, event: Event): Promise<void> {
+    return this.pluginManagerService.broadcast(ctx, event, (_, e) =>
+      this.subscriptionService.broadcast(e),
+    );
   }
 
   private mergeSortedEventArrays(arrays: Event[][]): Event[] {

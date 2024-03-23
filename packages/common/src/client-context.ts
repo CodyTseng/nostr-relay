@@ -40,7 +40,7 @@ export class ClientContext {
    * @param options Client context options
    */
   constructor(
-    private readonly client: Client,
+    readonly client: Client,
     options: ClientContextOptions = {},
   ) {
     this.id = randomUUID();

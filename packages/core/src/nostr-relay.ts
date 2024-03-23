@@ -3,24 +3,24 @@ import {
   ClientContext,
   ConsoleLoggerService,
   Event,
-  EventHandleResult,
   EventId,
   EventRepository,
   EventUtils,
   Filter,
   FilterUtils,
-  IncomingMessage,
-  LogLevel,
-  MessageType,
-  NostrRelayPlugin,
-  SubscriptionId,
   HandleAuthMessageResult,
   HandleCloseMessageResult,
   HandleEventMessageResult,
+  HandleEventResult,
   HandleMessageResult,
   HandleReqMessageResult,
+  IncomingMessage,
+  LogLevel,
+  MessageType,
+  NostrRelayOptions,
+  NostrRelayPlugin,
+  SubscriptionId,
 } from '@nostr-relay/common';
-import { NostrRelayOptions } from './interfaces';
 import { EventService } from './services/event.service';
 import { PluginManagerService } from './services/plugin-manager.service';
 import { SubscriptionService } from './services/subscription.service';
@@ -39,7 +39,7 @@ export class NostrRelay {
   private readonly eventService: EventService;
   private readonly subscriptionService: SubscriptionService;
   private readonly eventHandlingLazyCache:
-    | LazyCache<EventId, Promise<EventHandleResult>>
+    | LazyCache<EventId, Promise<HandleEventResult>>
     | undefined;
   private readonly domain?: string;
   private readonly pluginManagerService: PluginManagerService;
@@ -136,21 +136,25 @@ export class NostrRelay {
    */
   async handleMessage(
     client: Client,
-    msg: IncomingMessage,
+    message: IncomingMessage,
   ): Promise<HandleMessageResult> {
     const ctx = this.getClientContext(client);
-    const message = await this.pluginManagerService.preHandleMessage(ctx, msg);
-    if (!message) return;
+    return await this.pluginManagerService.handleMessage(
+      ctx,
+      message,
+      this._handleMessage.bind(this),
+    );
+  }
 
+  private async _handleMessage(ctx: ClientContext, message: IncomingMessage) {
+    const client = ctx.client;
     if (message[0] === MessageType.EVENT) {
       const [, event] = message;
       const result = await this.handleEventMessage(client, event);
-      const handleResult = {
+      return {
         messageType: MessageType.EVENT,
         ...result,
       };
-      await this.pluginManagerService.postHandleMessage(ctx, msg, handleResult);
-      return handleResult;
     }
     if (message[0] === MessageType.REQ) {
       const [, subscriptionId, ...filters] = message;
@@ -159,36 +163,30 @@ export class NostrRelay {
         subscriptionId,
         filters,
       );
-      const handleResult = {
+      return {
         messageType: MessageType.REQ,
         ...result,
       };
-      await this.pluginManagerService.postHandleMessage(ctx, msg, handleResult);
-      return handleResult;
     }
     if (message[0] === MessageType.CLOSE) {
       const [, subscriptionId] = message;
       const result = this.handleCloseMessage(client, subscriptionId);
-      const handleResult = {
+      return {
         messageType: MessageType.CLOSE,
         ...result,
       };
-      await this.pluginManagerService.postHandleMessage(ctx, msg, handleResult);
-      return handleResult;
     }
     if (message[0] === MessageType.AUTH) {
       const [, signedEvent] = message;
       const result = this.handleAuthMessage(client, signedEvent);
-      const handleResult = {
+      return {
         messageType: MessageType.AUTH,
         ...result,
       };
-      await this.pluginManagerService.postHandleMessage(ctx, msg, handleResult);
     }
     ctx.sendMessage(
       createOutgoingNoticeMessage('invalid: unknown message type'),
     );
-    await this.pluginManagerService.postHandleMessage(ctx, msg);
   }
 
   /**
@@ -202,16 +200,18 @@ export class NostrRelay {
     event: Event,
   ): Promise<HandleEventMessageResult> {
     const ctx = this.getClientContext(client);
-    const callback = async (): Promise<EventHandleResult> => {
-      const e = await this.pluginManagerService.preHandleEvent(ctx, event);
-      if (!e) return { success: false, noReplyNeeded: true };
+    return await this.pluginManagerService.handleEvent(
+      ctx,
+      event,
+      this._handleEventMessage.bind(this),
+    );
+  }
 
-      const handleResult = await this.eventService.handleEvent(ctx, e);
-
-      await this.pluginManagerService.postHandleEvent(ctx, e, handleResult);
-
-      return handleResult;
-    };
+  private async _handleEventMessage(
+    ctx: ClientContext,
+    event: Event,
+  ): Promise<HandleEventMessageResult> {
+    const callback = () => this.eventService.handleEvent(ctx, event);
 
     const handleResult = this.eventHandlingLazyCache
       ? await this.eventHandlingLazyCache.get(event.id, callback)
