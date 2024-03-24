@@ -333,6 +333,15 @@ export class NostrRelay {
     return this.domain ? !!this.getClientContext(client).pubkey : true;
   }
 
+  /**
+   * Broadcast an event. This method does not call any plugins.
+   *
+   * @param event The event to broadcast
+   */
+  async broadcast(event: Event): Promise<void> {
+    await this.subscriptionService.broadcast(event);
+  }
+
   private getClientContext(client: Client): ClientContext {
     const ctx = this.clientContexts.get(client);
     if (ctx) return ctx;

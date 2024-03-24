@@ -423,4 +423,17 @@ describe('NostrRelay', () => {
       expect(nostrRelay.isAuthorized(client)).toBeTruthy();
     });
   });
+
+  describe('broadcast', () => {
+    it('should call broadcast on subscriptionService', async () => {
+      const mockSubscriptionServiceBroadcast = jest
+        .spyOn(nostrRelay['subscriptionService'], 'broadcast')
+        .mockImplementation();
+      const event = { id: 'eventId' } as Event;
+
+      await nostrRelay.broadcast(event);
+
+      expect(mockSubscriptionServiceBroadcast).toHaveBeenCalledWith(event);
+    });
+  });
 });
