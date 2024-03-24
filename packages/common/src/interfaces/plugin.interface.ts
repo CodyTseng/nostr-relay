@@ -43,13 +43,12 @@ export interface HandleMessagePlugin {
    * @param ctx The client context
    * @param message The incoming message
    * @param next The next function to call the next plugin
-   * @returns The result of the message handling
    */
   handleMessage(
     ctx: ClientContext,
     message: IncomingMessage,
     next: () => Promise<HandleMessageResult>,
-  ): Promise<HandleMessageResult> | HandleMessageResult;
+  ): Promise<HandleMessageResult>;
 }
 
 /**
@@ -72,11 +71,10 @@ export interface BroadcastPlugin {
    * @param ctx The client context
    * @param event The event to broadcast
    * @param next The next function to call the next plugin
-   * @returns void
    */
   broadcast(
     ctx: ClientContext,
     event: Event,
     next: () => Promise<void>,
-  ): Promise<void> | void;
+  ): Promise<void>;
 }

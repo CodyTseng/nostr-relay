@@ -63,11 +63,13 @@ export class PluginManagerService {
         return Promise.reject(new Error('next() called multiple times'));
       }
       index = i;
-      const fn = plugins[i]?.[funcName];
-      if (!fn) {
-        return next(...args);
+      const plugin = plugins[i];
+      if (!plugin || !plugin[funcName]) {
+        return Promise.resolve(next(...args));
       }
-      return Promise.resolve(fn(...args, dispatch.bind(null, i + 1)));
+      return Promise.resolve(
+        plugin[funcName](...args, dispatch.bind(null, i + 1)),
+      );
     }
   }
 
