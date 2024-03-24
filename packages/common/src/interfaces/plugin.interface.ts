@@ -7,6 +7,34 @@ export type NostrRelayPlugin = HandleMessagePlugin | BroadcastPlugin;
 
 /**
  * A plugin that will be called when a new message is received from a client.
+ *
+ * @example
+ * ```ts
+ * // message logger plugin
+ * class MessageLoggerPlugin implements HandleMessagePlugin {
+ *   async handleMessage(ctx, message, next) {
+ *     const startTime = Date.now();
+ *     console.log('Received message:', message);
+ *     const result = await next();
+ *     console.log('Message processed in', Date.now() - startTime, 'ms');
+ *     return result;
+ *   }
+ * }
+ *
+ * // blacklist plugin
+ * class BlacklistPlugin implements HandleMessagePlugin {
+ *   blacklist = [
+ *     // ...
+ *   ];
+ *
+ *   async handleMessage(ctx, message, next) {
+ *     if (message[0] === 'EVENT' && blacklist.includes(message[1].pubkey)) {
+ *       return;
+ *     }
+ *     return next();
+ *   }
+ * }
+ * ```
  */
 export interface HandleMessagePlugin {
   /**
@@ -16,29 +44,6 @@ export interface HandleMessagePlugin {
    * @param message The incoming message
    * @param next The next function to call the next plugin
    * @returns The result of the message handling
-   *
-   * @example
-   * ```ts
-   * // message logger plugin
-   * async handleMessage(ctx, message, next) {
-   *   const startTime = Date.now();
-   *   console.log('Received message:', message);
-   *   const result = await next();
-   *   console.log('Message processed in', Date.now() - startTime, 'ms');
-   *   return result;
-   * }
-   *
-   * // blacklist plugin
-   * const blacklist = [
-   *  // ...
-   * ];
-   * async handleMessage(ctx, message, next) {
-   *   if (message[0] === 'EVENT' && blacklist.includes(message[1].pubkey)) {
-   *     return;
-   *   }
-   *   return next();
-   * }
-   * ```
    */
   handleMessage(
     ctx: ClientContext,
@@ -49,6 +54,16 @@ export interface HandleMessagePlugin {
 
 /**
  * A plugin that will be called when an event is broadcasted.
+ *
+ * @example
+ * ```ts
+ * class RedisBroadcastPlugin implements BroadcastPlugin {
+ *   async broadcast(ctx, event, next) {
+ *     await redis.publish('events', JSON.stringify(event));
+ *     return next();
+ *   }
+ * }
+ * ```
  */
 export interface BroadcastPlugin {
   /**
@@ -58,15 +73,6 @@ export interface BroadcastPlugin {
    * @param event The event to broadcast
    * @param next The next function to call the next plugin
    * @returns void
-   *
-   * @example
-   * ```ts
-   * // redis broadcast plugin
-   * async broadcast(ctx, event, next) {
-   *   await redis.publish('events', JSON.stringify(event));
-   *   return next();
-   * }
-   * ```
    */
   broadcast(
     ctx: ClientContext,
