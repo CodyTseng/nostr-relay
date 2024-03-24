@@ -27,10 +27,8 @@ describe('PluginManagerService', () => {
 
       pluginManagerService.register(plugin);
 
-      expect(pluginManagerService['handleMessageMiddlewares']).toEqual([
-        plugin,
-      ]);
-      expect(pluginManagerService['broadcastMiddlewares']).toEqual([plugin]);
+      expect(pluginManagerService['handleMessagePlugins']).toEqual([plugin]);
+      expect(pluginManagerService['broadcastPlugins']).toEqual([plugin]);
     });
 
     it('should register plugins', () => {
@@ -47,11 +45,11 @@ describe('PluginManagerService', () => {
 
       pluginManagerService.register(plugin1, plugin2).register(plugin3);
 
-      expect(pluginManagerService['handleMessageMiddlewares']).toEqual([
+      expect(pluginManagerService['handleMessagePlugins']).toEqual([
         plugin1,
         plugin3,
       ]);
-      expect(pluginManagerService['broadcastMiddlewares']).toEqual([
+      expect(pluginManagerService['broadcastPlugins']).toEqual([
         plugin2,
         plugin3,
       ]);
@@ -59,7 +57,7 @@ describe('PluginManagerService', () => {
   });
 
   describe('handleMessage', () => {
-    it('should call middlewares in order', async () => {
+    it('should call plugins in order', async () => {
       const arr: number[] = [];
       pluginManagerService.register(
         {
@@ -95,7 +93,7 @@ describe('PluginManagerService', () => {
       expect(mockNext).toHaveBeenCalledWith(ctx, {});
     });
 
-    it('should directly return if middleware does not call next', async () => {
+    it('should directly return if plugin does not call next', async () => {
       pluginManagerService.register({
         handleMessage: async () => {
           return { messageType: 'EVENT', success: false };
@@ -132,7 +130,7 @@ describe('PluginManagerService', () => {
   });
 
   describe('broadcast', () => {
-    it('should call middlewares in order', async () => {
+    it('should call plugins in order', async () => {
       const arr: number[] = [];
       pluginManagerService.register(
         {

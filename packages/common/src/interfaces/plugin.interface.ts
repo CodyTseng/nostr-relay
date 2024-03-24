@@ -3,9 +3,9 @@ import { Event } from './event.interface';
 import { HandleMessageResult } from './handle-result.interface';
 import { IncomingMessage } from './message.interface';
 
-export type NostrRelayPlugin = HandleMessageMiddleware | BroadcastMiddleware;
+export type NostrRelayPlugin = HandleMessagePlugin | BroadcastPlugin;
 
-export interface HandleMessageMiddleware {
+export interface HandleMessagePlugin {
   handleMessage(
     ctx: ClientContext,
     message: IncomingMessage,
@@ -13,7 +13,7 @@ export interface HandleMessageMiddleware {
   ): Promise<HandleMessageResult> | HandleMessageResult;
 }
 
-export interface BroadcastMiddleware {
+export interface BroadcastPlugin {
   broadcast(
     ctx: ClientContext,
     event: Event,
