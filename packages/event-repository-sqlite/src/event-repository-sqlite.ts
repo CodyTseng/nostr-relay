@@ -9,6 +9,12 @@ import * as BetterSqlite3 from 'better-sqlite3';
 import { readFileSync, readdirSync } from 'fs';
 import * as path from 'path';
 
+interface FilterSqlClauses {
+  innerJoinClauses: string[];
+  whereClauses: string[];
+  whereValues: (string | number)[];
+}
+
 export class EventRepositorySqlite extends EventRepository {
   private db: BetterSqlite3.Database;
 
@@ -108,7 +114,7 @@ export class EventRepositorySqlite extends EventRepository {
   }
 
   async find(filter: Filter): Promise<Event[]> {
-    const { ids, authors, kinds, since, until, limit } = filter;
+    const { limit } = filter;
 
     if (limit === 0) return [];
 
@@ -117,47 +123,7 @@ export class EventRepositorySqlite extends EventRepository {
       return this.findFromGenericTags(filter, genericTags);
     }
 
-    const innerJoinClauses: string[] = [];
-    const whereClauses: string[] = [];
-    const whereValues: (string | number)[] = [];
-
-    if (genericTags.length) {
-      genericTags.forEach((genericTags, index) => {
-        const alias = `g${index + 1}`;
-        innerJoinClauses.push(
-          `INNER JOIN generic_tags ${alias} ON ${alias}.event_id = e.id`,
-        );
-        whereClauses.push(
-          `${alias}.tag IN (${genericTags.map(() => '?').join(',')})`,
-        );
-        whereValues.push(...genericTags);
-      });
-    }
-
-    if (ids?.length) {
-      whereClauses.push(`id IN (${ids.map(() => '?').join(',')})`);
-      whereValues.push(...ids);
-    }
-
-    if (authors?.length) {
-      whereClauses.push(`author IN (${authors.map(() => '?').join(',')})`);
-      whereValues.push(...authors);
-    }
-
-    if (kinds?.length) {
-      whereClauses.push(`kind IN (${kinds.map(() => '?').join(',')})`);
-      whereValues.push(...kinds);
-    }
-
-    if (since) {
-      whereClauses.push(`created_at >= ?`);
-      whereValues.push(since);
-    }
-
-    if (until) {
-      whereClauses.push(`created_at <= ?`);
-      whereValues.push(until);
-    }
+    const { innerJoinClauses, whereClauses, whereValues } = this.sqlClausesFrom(filter);
 
     const whereClause =
       whereClauses.length > 0 ? `WHERE ${whereClauses.join(' AND ')}` : '';
@@ -173,51 +139,11 @@ export class EventRepositorySqlite extends EventRepository {
   }
 
   async delete(filter?: Filter): Promise<number> {
-    let innerJoinClauses: string[] = [];
     let whereClauses: string[] = [];
     let whereValues: (string | number)[] = [];
 
     if (filter) {
-      const { ids, authors, kinds, since, until } = filter;
-      const genericTags = this.extractGenericTagsFrom(filter);
-
-      if (genericTags.length) {
-        genericTags.forEach((genericTags, index) => {
-          const alias = `g${index + 1}`;
-          innerJoinClauses.push(
-            `INNER JOIN generic_tags ${alias} ON ${alias}.event_id = e.id`,
-          );
-          whereClauses.push(
-            `${alias}.tag IN (${genericTags.map(() => '?').join(',')})`,
-          );
-          whereValues.push(...genericTags);
-        });
-      }
-
-      if (ids?.length) {
-        whereClauses.push(`id IN (${ids.map(() => '?').join(',')})`);
-        whereValues.push(...ids);
-      }
-
-      if (authors?.length) {
-        whereClauses.push(`author IN (${authors.map(() => '?').join(',')})`);
-        whereValues.push(...authors);
-      }
-
-      if (kinds?.length) {
-        whereClauses.push(`kind IN (${kinds.map(() => '?').join(',')})`);
-        whereValues.push(...kinds);
-      }
-
-      if (since) {
-        whereClauses.push(`created_at >= ?`);
-        whereValues.push(since);
-      }
-
-      if (until) {
-        whereClauses.push(`created_at <= ?`);
-        whereValues.push(until);
-      }
+      ({ whereClauses, whereValues } = this.sqlClausesFrom(filter));
     }
 
     const whereClause =
@@ -389,6 +315,59 @@ export class EventRepositorySqlite extends EventRepository {
     return {
       lastMigration: migrationsToRun[migrationsToRun.length - 1],
       executedMigrations: migrationsToRun,
+    };
+  }
+
+  private sqlClausesFrom(filter: Filter): FilterSqlClauses {
+    const innerJoinClauses: string[] = [];
+    const whereClauses: string[] = [];
+    const whereValues: (string | number)[] = [];
+
+    const { ids, authors, kinds, since, until } = filter;
+    const genericTags = this.extractGenericTagsFrom(filter);
+
+    if (genericTags.length) {
+      genericTags.forEach((genericTags, index) => {
+        const alias = `g${index + 1}`;
+        innerJoinClauses.push(
+          `INNER JOIN generic_tags ${alias} ON ${alias}.event_id = e.id`,
+        );
+        whereClauses.push(
+          `${alias}.tag IN (${genericTags.map(() => '?').join(',')})`,
+        );
+        whereValues.push(...genericTags);
+      });
+    }
+
+    if (ids?.length) {
+      whereClauses.push(`id IN (${ids.map(() => '?').join(',')})`);
+      whereValues.push(...ids);
+    }
+
+    if (authors?.length) {
+      whereClauses.push(`author IN (${authors.map(() => '?').join(',')})`);
+      whereValues.push(...authors);
+    }
+
+    if (kinds?.length) {
+      whereClauses.push(`kind IN (${kinds.map(() => '?').join(',')})`);
+      whereValues.push(...kinds);
+    }
+
+    if (since) {
+      whereClauses.push(`created_at >= ?`);
+      whereValues.push(since);
+    }
+
+    if (until) {
+      whereClauses.push(`created_at <= ?`);
+      whereValues.push(until);
+    }
+
+    return {
+      innerJoinClauses,
+      whereClauses,
+      whereValues,
     };
   }
 }
