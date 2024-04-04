@@ -172,6 +172,67 @@ export class EventRepositorySqlite extends EventRepository {
     return rows.map(this.toEvent);
   }
 
+  async delete(filter?: Filter): Promise<number> {
+    let innerJoinClauses: string[] = [];
+    let whereClauses: string[] = [];
+    let whereValues: (string | number)[] = [];
+
+    if (filter) {
+      const { ids, authors, kinds, since, until } = filter;
+      const genericTags = this.extractGenericTagsFrom(filter);
+
+      if (genericTags.length) {
+        genericTags.forEach((genericTags, index) => {
+          const alias = `g${index + 1}`;
+          innerJoinClauses.push(
+            `INNER JOIN generic_tags ${alias} ON ${alias}.event_id = e.id`,
+          );
+          whereClauses.push(
+            `${alias}.tag IN (${genericTags.map(() => '?').join(',')})`,
+          );
+          whereValues.push(...genericTags);
+        });
+      }
+
+      if (ids?.length) {
+        whereClauses.push(`id IN (${ids.map(() => '?').join(',')})`);
+        whereValues.push(...ids);
+      }
+
+      if (authors?.length) {
+        whereClauses.push(`author IN (${authors.map(() => '?').join(',')})`);
+        whereValues.push(...authors);
+      }
+
+      if (kinds?.length) {
+        whereClauses.push(`kind IN (${kinds.map(() => '?').join(',')})`);
+        whereValues.push(...kinds);
+      }
+
+      if (since) {
+        whereClauses.push(`created_at >= ?`);
+        whereValues.push(since);
+      }
+
+      if (until) {
+        whereClauses.push(`created_at <= ?`);
+        whereValues.push(until);
+      }
+    }
+
+    const whereClause =
+      whereClauses.length > 0 ? `WHERE ${whereClauses.join(' AND ')}` : '';
+    const deleteResult = this.db
+      .prepare(
+        `
+      DELETE FROM events ${whereClause};
+      `,
+      )
+      .run(whereValues);
+
+    return deleteResult.changes;
+  }
+
   private async findFromGenericTags(
     filter: Filter,
     genericTags: string[][],
