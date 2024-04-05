@@ -1,6 +1,6 @@
 {
   "name": "@nostr-relay/validator",
-  "version": "0.0.18",
+  "version": "0.0.19",
   "description": "Easily build your customized Nostr Relay.",
   "author": "codytseng",
   "homepage": "https://github.com/CodyTseng/nostr-relay#readme",
@@ -28,7 +28,7 @@
     "url": "https://github.com/CodyTseng/nostr-relay/issues"
   },
   "dependencies": {
-    "@nostr-relay/common": "^0.0.18",
+    "@nostr-relay/common": "^0.0.19",
     "zod": "^3.22.4",
     "zod-validation-error": "^2.1.0"
   }
