@@ -78,6 +78,9 @@ export class EventRepositorySqlite extends EventRepository {
 
       if (genericTags.length > 0) {
         this.db
+          .prepare('DELETE FROM generic_tags WHERE event_id = ?')
+          .run(event.id);
+        this.db
           .prepare(
             `INSERT INTO generic_tags (tag, event_id, author, kind, created_at) VALUES ${genericTags
               .map(() => '(?, ?, ?, ?, ?)')
