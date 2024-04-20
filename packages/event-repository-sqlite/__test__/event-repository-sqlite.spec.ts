@@ -1,11 +1,11 @@
-import { Database } from 'better-sqlite3';
+import * as BetterSqlite3 from 'better-sqlite3';
 import { EventKind, getTimestampInSeconds } from '../../common';
 import { createEvent } from '../../common/__test__/utils/event.spec';
 import { EventRepositorySqlite } from '../src/event-repository-sqlite';
 
 describe('EventRepositorySqlite', () => {
   let eventRepository: EventRepositorySqlite;
-  let database: Database;
+  let database: BetterSqlite3.Database;
 
   beforeEach(async () => {
     eventRepository = new EventRepositorySqlite();
@@ -14,6 +14,14 @@ describe('EventRepositorySqlite', () => {
 
   afterEach(async () => {
     eventRepository.close();
+  });
+
+  describe('constructor', () => {
+    it('should support create by better-sqlite3.Database', () => {
+      const db = new BetterSqlite3(':memory:');
+      const eventRepository = new EventRepositorySqlite(db);
+      expect(eventRepository.getDatabase()).toBe(db);
+    });
   });
 
   describe('isSearchSupported', () => {

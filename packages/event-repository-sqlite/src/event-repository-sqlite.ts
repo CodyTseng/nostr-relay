@@ -12,10 +12,16 @@ import * as path from 'path';
 export class EventRepositorySqlite extends EventRepository {
   private db: BetterSqlite3.Database;
 
-  constructor(filename = ':memory:') {
+  constructor(db: BetterSqlite3.Database);
+  constructor(filename?: string);
+  constructor(filenameOrDb: string | BetterSqlite3.Database = ':memory:') {
     super();
-    this.db = new BetterSqlite3(filename);
-    this.db.pragma('journal_mode = WAL');
+    if (typeof filenameOrDb === 'string') {
+      this.db = new BetterSqlite3(filenameOrDb);
+      this.db.pragma('journal_mode = WAL');
+    } else {
+      this.db = filenameOrDb;
+    }
 
     this.migrate();
   }
