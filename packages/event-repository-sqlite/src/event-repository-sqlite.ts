@@ -7,7 +7,12 @@ import {
 } from '@nostr-relay/common';
 import * as BetterSqlite3 from 'better-sqlite3';
 import { readdirSync, readFileSync } from 'fs';
-import { JSONColumnType, Kysely, SqliteDialect } from 'kysely';
+import {
+  JSONColumnType,
+  Kysely,
+  SelectQueryBuilder,
+  SqliteDialect,
+} from 'kysely';
 import * as path from 'path';
 
 export interface Database {
@@ -34,6 +39,14 @@ interface GenericTagTable {
   event_id: string;
   created_at: number;
 }
+
+type eventSelectQueryBuilder = SelectQueryBuilder<
+  Database & {
+    e: EventTable;
+  },
+  'e',
+  {}
+>;
 
 export class EventRepositorySqlite extends EventRepository {
   private db: Kysely<Database>;
@@ -197,7 +210,7 @@ export class EventRepositorySqlite extends EventRepository {
     return rows.map(this.toEvent);
   }
 
-  private createSelectQuery(filter: Filter) {
+  private createSelectQuery(filter: Filter): eventSelectQueryBuilder {
     let query = this.db.selectFrom('events as e');
 
     const genericTagsCollection = this.extractGenericTagsCollectionFrom(filter);
@@ -246,7 +259,7 @@ export class EventRepositorySqlite extends EventRepository {
     filter: Filter,
     firstGenericTagsFilter: string[],
     secondGenericTagsFilter?: string[],
-  ) {
+  ): eventSelectQueryBuilder {
     let subQuery = this.db
       .selectFrom('generic_tags as g')
       .select('g.event_id')
@@ -314,7 +327,7 @@ export class EventRepositorySqlite extends EventRepository {
       .sort((a, b) => a.length - b.length);
   }
 
-  private getLimitFrom(filter: Filter, defaultLimit = 100) {
+  private getLimitFrom(filter: Filter, defaultLimit = 100): number {
     return Math.min(filter.limit ?? defaultLimit, 1000);
   }
 
