@@ -43,6 +43,14 @@ export abstract class EventRepository {
   abstract find(filter: Filter): Promise<Event[]> | Event[];
 
   /**
+   * If filter is present, events that match the filter are deleted.
+   * If no filter is present, all events are deleted.
+   *
+   * @param filter Query filter
+   */
+  abstract delete(filter?: Filter): Promise<number>;
+
+  /**
    * This method doesn't need to be implemented. It's just a helper method for
    * finding one event. And it will call `find` method internally.
    *
