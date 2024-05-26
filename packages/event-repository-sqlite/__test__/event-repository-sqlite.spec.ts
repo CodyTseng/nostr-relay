@@ -179,9 +179,11 @@ describe('EventRepositorySqlite', () => {
     });
 
     it('should throw an error', async () => {
-      jest.spyOn(eventRepository['db'], 'prepare').mockImplementation(() => {
-        throw new Error('test');
-      });
+      jest
+        .spyOn(eventRepository['db'], 'transaction')
+        .mockImplementation(() => {
+          throw new Error('test');
+        });
 
       await expect(eventRepository.upsert(createEvent())).rejects.toThrow(
         'test',
@@ -205,7 +207,10 @@ describe('EventRepositorySqlite', () => {
       createEvent({
         kind: EventKind.TEXT_NOTE,
         content: 'hello world',
-        tags: [['t', 'test']],
+        tags: [
+          ['t', 'test'],
+          ['f', 'test'],
+        ],
         created_at: now,
       }),
       createEvent({
@@ -278,6 +283,7 @@ describe('EventRepositorySqlite', () => {
       const result = await eventRepository.find({
         ids: [TEXT_NOTE_EVENT.id],
         '#t': ['test'],
+        '#f': ['test'],
       });
       expect(result).toEqual([TEXT_NOTE_EVENT]);
     });
@@ -352,6 +358,15 @@ describe('EventRepositorySqlite', () => {
           ids: [TEXT_NOTE_EVENT.id],
         });
         expect(result).toEqual([TEXT_NOTE_EVENT]);
+      });
+
+      it('should return empty array if query is too complex', async () => {
+        const result = await eventRepository.find({
+          '#t': ['test'],
+          '#e': ['test'],
+          '#f': ['test'],
+        });
+        expect(result).toEqual([]);
       });
     });
   });
