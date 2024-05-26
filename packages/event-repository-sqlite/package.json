@@ -30,7 +30,8 @@
   },
   "dependencies": {
     "@nostr-relay/common": "^0.0.20",
-    "better-sqlite3": "^9.2.2"
+    "better-sqlite3": "^9.2.2",
+    "kysely": "^0.27.3"
   },
   "devDependencies": {
     "@types/better-sqlite3": "^7.6.8"
