@@ -1,6 +1,6 @@
 {
   "name": "@nostr-relay/event-repository-sqlite",
-  "version": "0.0.20",
+  "version": "0.0.21",
   "description": "Easily build your customized Nostr Relay.",
   "author": "codytseng",
   "homepage": "https://github.com/CodyTseng/nostr-relay#readme",
@@ -29,7 +29,7 @@
     "url": "https://github.com/CodyTseng/nostr-relay/issues"
   },
   "dependencies": {
-    "@nostr-relay/common": "^0.0.20",
+    "@nostr-relay/common": "^0.0.21",
     "better-sqlite3": "^9.2.2",
     "kysely": "^0.27.3"
   },
