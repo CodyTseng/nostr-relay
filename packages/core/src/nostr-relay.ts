@@ -348,7 +348,6 @@ export class NostrRelay {
    */
   async destroy(): Promise<void> {
     this.clientContexts.clear();
-    this.subscriptionService.removeAllClients();
     this.eventHandlingLazyCache?.clear();
     await this.eventService.destroy();
   }

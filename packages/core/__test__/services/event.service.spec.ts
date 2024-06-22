@@ -268,14 +268,10 @@ describe('eventService', () => {
       const mockFindLazyCacheClear = jest
         .spyOn(eventServiceWithCache['findLazyCache']!, 'clear')
         .mockImplementation();
-      const mockEventRepositoryDestroy = jest
-        .spyOn(eventRepository, 'destroy')
-        .mockImplementation();
 
       await eventServiceWithCache.destroy();
 
       expect(mockFindLazyCacheClear).toHaveBeenCalled();
-      expect(mockEventRepositoryDestroy).toHaveBeenCalled();
     });
   });
 });

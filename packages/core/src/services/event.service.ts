@@ -210,6 +210,5 @@ export class EventService {
 
   async destroy(): Promise<void> {
     this.findLazyCache?.clear();
-    await this.eventRepository.destroy();
   }
 }

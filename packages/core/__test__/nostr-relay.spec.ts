@@ -439,9 +439,6 @@ describe('NostrRelay', () => {
 
   describe('destroy', () => {
     it('should destroy successfully', async () => {
-      const mockSubscriptionServiceRemoveAllClients = jest
-        .spyOn(nostrRelay['subscriptionService'], 'removeAllClients')
-        .mockImplementation();
       const mockLazyCacheClear = jest
         .spyOn(nostrRelay['eventHandlingLazyCache']!, 'clear')
         .mockImplementation();
@@ -455,7 +452,6 @@ describe('NostrRelay', () => {
       await nostrRelay.destroy();
 
       expect(nostrRelay['clientContexts'].size).toBe(0);
-      expect(mockSubscriptionServiceRemoveAllClients).toHaveBeenCalled();
       expect(mockLazyCacheClear).toHaveBeenCalled();
       expect(mockEventServiceDestroy).toHaveBeenCalled();
     });

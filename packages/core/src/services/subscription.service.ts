@@ -31,10 +31,6 @@ export class SubscriptionService {
     return ctx.subscriptions.delete(subscriptionId);
   }
 
-  removeAllClients(): void {
-    this.clientsMap.clear();
-  }
-
   async broadcast(event: Event): Promise<void> {
     try {
       for (const ctx of this.clientsMap.values()) {

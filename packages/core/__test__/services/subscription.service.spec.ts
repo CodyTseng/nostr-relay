@@ -188,15 +188,4 @@ describe('SubscriptionService', () => {
       expect(spyLoggerError).toHaveBeenCalled();
     });
   });
-
-  describe('removeAllClients', () => {
-    it('should remove all clients', () => {
-      subscriptionService.subscribe(ctx, 'subscriptionId', [{}]);
-      expect(clientsMap.size).toEqual(1);
-
-      subscriptionService.removeAllClients();
-
-      expect(clientsMap.size).toEqual(0);
-    });
-  });
 });
