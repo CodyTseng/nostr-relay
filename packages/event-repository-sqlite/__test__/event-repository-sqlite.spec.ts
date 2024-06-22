@@ -13,7 +13,7 @@ describe('EventRepositorySqlite', () => {
   });
 
   afterEach(async () => {
-    eventRepository.close();
+    await eventRepository.destroy();
   });
 
   describe('constructor', () => {

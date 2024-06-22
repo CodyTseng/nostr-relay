@@ -207,4 +207,9 @@ export class EventService {
 
     return result.filter((e, i, a) => i === 0 || e.id !== a[i - 1]?.id);
   }
+
+  async destroy(): Promise<void> {
+    this.findLazyCache?.clear();
+    await this.eventRepository.destroy();
+  }
 }

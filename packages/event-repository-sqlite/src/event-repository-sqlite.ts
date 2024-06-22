@@ -73,8 +73,8 @@ export class EventRepositorySqlite extends EventRepository {
     return this.betterSqlite3;
   }
 
-  close(): void {
-    this.betterSqlite3.close();
+  async destroy(): Promise<void> {
+    await this.db.destroy();
   }
 
   isSearchSupported(): boolean {

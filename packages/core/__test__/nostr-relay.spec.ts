@@ -436,4 +436,28 @@ describe('NostrRelay', () => {
       expect(mockSubscriptionServiceBroadcast).toHaveBeenCalledWith(event);
     });
   });
+
+  describe('destroy', () => {
+    it('should destroy successfully', async () => {
+      const mockSubscriptionServiceRemoveAllClients = jest
+        .spyOn(nostrRelay['subscriptionService'], 'removeAllClients')
+        .mockImplementation();
+      const mockLazyCacheClear = jest
+        .spyOn(nostrRelay['eventHandlingLazyCache']!, 'clear')
+        .mockImplementation();
+      const mockEventServiceDestroy = jest
+        .spyOn(nostrRelay['eventService'], 'destroy')
+        .mockImplementation();
+
+      nostrRelay.handleConnection(client);
+      expect(nostrRelay['clientContexts'].size).toBe(1);
+
+      await nostrRelay.destroy();
+
+      expect(nostrRelay['clientContexts'].size).toBe(0);
+      expect(mockSubscriptionServiceRemoveAllClients).toHaveBeenCalled();
+      expect(mockLazyCacheClear).toHaveBeenCalled();
+      expect(mockEventServiceDestroy).toHaveBeenCalled();
+    });
+  });
 });

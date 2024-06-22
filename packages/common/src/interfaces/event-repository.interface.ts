@@ -43,6 +43,12 @@ export abstract class EventRepository {
   abstract find(filter: Filter): Promise<Event[]> | Event[];
 
   /**
+   * This method is called when the event repository should be closed. You can
+   * release resources in this method.
+   */
+  abstract destroy(): Promise<void>;
+
+  /**
    * This method doesn't need to be implemented. It's just a helper method for
    * finding one event. And it will call `find` method internally.
    *
