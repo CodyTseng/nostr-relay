@@ -25,6 +25,7 @@ describe('eventService', () => {
       upsert: jest.fn(),
       find: jest.fn(),
       findOne: jest.fn(),
+      destroy: jest.fn(),
     };
     subscriptionService = new SubscriptionService(
       new Map(),
@@ -252,6 +253,29 @@ describe('eventService', () => {
         { id: 'g', created_at: 5 },
         { id: 'h', created_at: 4 },
       ]);
+    });
+  });
+
+  describe('destroy', () => {
+    it('should destroy successfully', async () => {
+      const eventServiceWithCache = new EventService(
+        eventRepository,
+        subscriptionService,
+        pluginManagerService,
+        new ConsoleLoggerService(),
+      );
+
+      const mockFindLazyCacheClear = jest
+        .spyOn(eventServiceWithCache['findLazyCache']!, 'clear')
+        .mockImplementation();
+      const mockEventRepositoryDestroy = jest
+        .spyOn(eventRepository, 'destroy')
+        .mockImplementation();
+
+      await eventServiceWithCache.destroy();
+
+      expect(mockFindLazyCacheClear).toHaveBeenCalled();
+      expect(mockEventRepositoryDestroy).toHaveBeenCalled();
     });
   });
 });

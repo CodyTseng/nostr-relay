@@ -342,6 +342,17 @@ export class NostrRelay {
     await this.subscriptionService.broadcast(event);
   }
 
+  /**
+   * Destroy the NostrRelay instance. This method should be called when the
+   * NostrRelay instance is no longer needed.
+   */
+  async destroy(): Promise<void> {
+    this.clientContexts.clear();
+    this.subscriptionService.removeAllClients();
+    this.eventHandlingLazyCache?.clear();
+    await this.eventService.destroy();
+  }
+
   private getClientContext(client: Client): ClientContext {
     const ctx = this.clientContexts.get(client);
     if (ctx) return ctx;

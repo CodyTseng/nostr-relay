@@ -13,4 +13,8 @@ export class LazyCache<K extends {}, V extends {}> {
     }
     return this.cache.get(key)!;
   }
+
+  clear(): void {
+    this.cache.clear();
+  }
 }

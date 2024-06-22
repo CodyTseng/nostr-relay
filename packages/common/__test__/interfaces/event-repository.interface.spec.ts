@@ -51,4 +51,5 @@ class TestEventRepository extends EventRepository {
   isSearchSupported = jest.fn().mockReturnValue(false);
   upsert = jest.fn();
   find = jest.fn();
+  destroy = jest.fn();
 }
