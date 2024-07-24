@@ -17,10 +17,20 @@ describe('EventRepositorySqlite', () => {
   });
 
   describe('constructor', () => {
-    it('should support create by better-sqlite3.Database', () => {
+    it('should support create by better-sqlite3.Database', async () => {
       const db = new BetterSqlite3(':memory:');
-      const eventRepository = new EventRepositorySqlite(db);
-      expect(eventRepository.getDatabase()).toBe(db);
+      const newEventRepository = new EventRepositorySqlite(db);
+      expect(newEventRepository.getDatabase()).toBe(db);
+      expect(newEventRepository.getDefaultLimit()).toBe(100);
+      await newEventRepository.destroy();
+    });
+
+    it('should support options', async () => {
+      const newEventRepository = new EventRepositorySqlite(':memory:', {
+        defaultLimit: 10,
+      });
+      expect(newEventRepository.getDefaultLimit()).toBe(10);
+      await newEventRepository.destroy();
     });
   });
 
@@ -368,6 +378,14 @@ describe('EventRepositorySqlite', () => {
         });
         expect(result).toEqual([]);
       });
+    });
+  });
+
+  describe('setDefaultLimit', () => {
+    it('should set default limit', async () => {
+      expect(eventRepository.getDefaultLimit()).toBe(100);
+      eventRepository.setDefaultLimit(10);
+      expect(eventRepository.getDefaultLimit()).toBe(10);
     });
   });
 

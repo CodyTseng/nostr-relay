@@ -6,7 +6,7 @@ import {
   Filter,
 } from '@nostr-relay/common';
 import * as BetterSqlite3 from 'better-sqlite3';
-import { readdirSync, readFileSync } from 'fs';
+import { readFileSync, readdirSync } from 'fs';
 import {
   JSONColumnType,
   Kysely,
@@ -14,6 +14,13 @@ import {
   SqliteDialect,
 } from 'kysely';
 import * as path from 'path';
+
+const DEFAULT_LIMIT = 100;
+const MAX_LIMIT_MULTIPLIER = 10;
+
+export type EventRepositorySqliteOptions = {
+  defaultLimit?: number;
+};
 
 export interface Database {
   events: EventTable;
@@ -51,10 +58,18 @@ type eventSelectQueryBuilder = SelectQueryBuilder<
 export class EventRepositorySqlite extends EventRepository {
   private db: Kysely<Database>;
   private betterSqlite3: BetterSqlite3.Database;
+  private defaultLimit: number;
+  private maxLimit: number;
 
-  constructor(db: BetterSqlite3.Database);
-  constructor(filename?: string);
-  constructor(filenameOrDb: string | BetterSqlite3.Database = ':memory:') {
+  constructor(
+    db: BetterSqlite3.Database,
+    options?: EventRepositorySqliteOptions,
+  );
+  constructor(filename?: string, options?: EventRepositorySqliteOptions);
+  constructor(
+    filenameOrDb: string | BetterSqlite3.Database = ':memory:',
+    options?: EventRepositorySqliteOptions,
+  ) {
     super();
     if (typeof filenameOrDb === 'string') {
       this.betterSqlite3 = new BetterSqlite3(filenameOrDb);
@@ -65,8 +80,10 @@ export class EventRepositorySqlite extends EventRepository {
     this.db = new Kysely<Database>({
       dialect: new SqliteDialect({ database: this.betterSqlite3 }),
     });
-
     this.migrate();
+
+    this.defaultLimit = options?.defaultLimit ?? DEFAULT_LIMIT;
+    this.maxLimit = this.defaultLimit * MAX_LIMIT_MULTIPLIER;
   }
 
   getDatabase(): BetterSqlite3.Database {
@@ -210,6 +227,15 @@ export class EventRepositorySqlite extends EventRepository {
     return rows.map(this.toEvent);
   }
 
+  getDefaultLimit(): number {
+    return this.defaultLimit;
+  }
+
+  setDefaultLimit(limit: number): void {
+    this.defaultLimit = limit;
+    this.maxLimit = limit * MAX_LIMIT_MULTIPLIER;
+  }
+
   private createSelectQuery(filter: Filter): eventSelectQueryBuilder {
     let query = this.db.selectFrom('events as e');
 
@@ -327,8 +353,10 @@ export class EventRepositorySqlite extends EventRepository {
       .sort((a, b) => a.length - b.length);
   }
 
-  private getLimitFrom(filter: Filter, defaultLimit = 100): number {
-    return Math.min(filter.limit ?? defaultLimit, 1000);
+  private getLimitFrom(filter: Filter): number {
+    return filter.limit === undefined
+      ? this.defaultLimit
+      : Math.min(filter.limit, this.maxLimit);
   }
 
   private migrate(): {
