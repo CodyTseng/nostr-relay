@@ -356,6 +356,7 @@ export class NostrRelay {
    * @param filters Filters
    * @param pubkey Public key of the client
    * @param iteratee Iteratee function to call for each event
+   * @returns Events or an error message
    */
   async findEvents(
     filters: Filter[],
