@@ -84,11 +84,10 @@ describe('NostrRelay', () => {
       const mockHandleEvent = jest
         .spyOn(nostrRelay['eventService'], 'handleEvent')
         .mockResolvedValue(handleResult);
-      const ctx = nostrRelay['getClientContext'](client);
 
       await nostrRelay.handleEventMessage(client, event);
 
-      expect(mockHandleEvent).toHaveBeenCalledWith(ctx, event);
+      expect(mockHandleEvent).toHaveBeenCalledWith(event);
       expect(client.send).toHaveBeenCalledWith(JSON.stringify(outgoingMessage));
     });
 

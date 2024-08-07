@@ -134,14 +134,14 @@ describe('PluginManagerService', () => {
       const arr: number[] = [];
       pluginManagerService.register(
         {
-          broadcast: async (_ctx, _message, next) => {
+          broadcast: async (_message, next) => {
             arr.push(1);
             await next();
             arr.push(5);
           },
         },
         {
-          broadcast: async (_ctx, _message, next) => {
+          broadcast: async (_message, next) => {
             arr.push(2);
             await next();
             arr.push(4);
@@ -149,7 +149,7 @@ describe('PluginManagerService', () => {
         },
       );
 
-      await pluginManagerService.broadcast(ctx, {} as Event, async () => {
+      await pluginManagerService.broadcast({} as Event, async () => {
         arr.push(3);
       });
 

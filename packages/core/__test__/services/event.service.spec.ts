@@ -98,7 +98,7 @@ describe('eventService', () => {
   describe('handleEvent', () => {
     it('should directly return if event is authentication', async () => {
       expect(
-        await eventService.handleEvent(ctx, {
+        await eventService.handleEvent({
           kind: EventKind.AUTHENTICATION,
         } as Event),
       ).toEqual({ success: true, noReplyNeeded: true });
@@ -112,7 +112,7 @@ describe('eventService', () => {
 
       jest.spyOn(eventRepository, 'findOne').mockResolvedValue(event);
 
-      expect(await eventService.handleEvent(ctx, event)).toEqual({
+      expect(await eventService.handleEvent(event)).toEqual({
         success: true,
         message: 'duplicate: the event already exists',
       });
@@ -125,7 +125,7 @@ describe('eventService', () => {
         .spyOn(EventUtils, 'validate')
         .mockReturnValue('error: invalid event');
 
-      expect(await eventService.handleEvent(ctx, event)).toEqual({
+      expect(await eventService.handleEvent(event)).toEqual({
         success: false,
         message: 'error: invalid event',
       });
@@ -135,7 +135,7 @@ describe('eventService', () => {
       const event = { id: 'a', kind: EventKind.EPHEMERAL_FIRST } as Event;
       jest.spyOn(EventUtils, 'validate').mockReturnValue(undefined);
 
-      expect(await eventService.handleEvent(ctx, event)).toEqual({
+      expect(await eventService.handleEvent(event)).toEqual({
         noReplyNeeded: true,
         success: true,
       });
@@ -151,7 +151,7 @@ describe('eventService', () => {
         .spyOn(eventRepository, 'upsert')
         .mockResolvedValue({ isDuplicate: false });
 
-      expect(await eventService.handleEvent(ctx, event)).toEqual({
+      expect(await eventService.handleEvent(event)).toEqual({
         success: true,
       });
       expect(subscriptionService.broadcast).toHaveBeenCalledWith(event);
@@ -166,7 +166,7 @@ describe('eventService', () => {
         .spyOn(eventRepository, 'upsert')
         .mockResolvedValue({ isDuplicate: true });
 
-      expect(await eventService.handleEvent(ctx, event)).toEqual({
+      expect(await eventService.handleEvent(event)).toEqual({
         success: true,
         message: 'duplicate: the event already exists',
       });
@@ -185,7 +185,7 @@ describe('eventService', () => {
         .spyOn(eventService['logger'], 'error')
         .mockImplementation();
 
-      expect(await eventService.handleEvent(ctx, event)).toEqual({
+      expect(await eventService.handleEvent(event)).toEqual({
         success: false,
         message: 'error: test',
       });
@@ -203,7 +203,7 @@ describe('eventService', () => {
         .spyOn(eventService['logger'], 'error')
         .mockImplementation();
 
-      expect(await eventService.handleEvent(ctx, event)).toEqual({
+      expect(await eventService.handleEvent(event)).toEqual({
         success: false,
         message: 'error: unknown',
       });

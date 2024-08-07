@@ -43,11 +43,10 @@ export class PluginManagerService {
   }
 
   async broadcast(
-    ctx: ClientContext,
     event: Event,
-    next: (ctx: ClientContext, event: Event) => Promise<void>,
+    next: (event: Event) => Promise<void>,
   ): Promise<void> {
-    return this.compose(this.broadcastPlugins, 'broadcast', next, ctx, event);
+    return this.compose(this.broadcastPlugins, 'broadcast', next, event);
   }
 
   private compose<R>(

@@ -1,5 +1,4 @@
 import {
-  ClientContext,
   Event,
   EventKind,
   EventRepository,
@@ -63,10 +62,7 @@ export class EventService {
     return this.mergeSortedEventArrays(arrays);
   }
 
-  async handleEvent(
-    ctx: ClientContext,
-    event: Event,
-  ): Promise<HandleEventResult> {
+  async handleEvent(event: Event): Promise<HandleEventResult> {
     if (event.kind === EventKind.AUTHENTICATION) {
       return { success: true, noReplyNeeded: true };
     }
@@ -94,9 +90,9 @@ export class EventService {
     try {
       const eventType = EventUtils.getType(event);
       if (eventType === EventType.EPHEMERAL) {
-        return await this.handleEphemeralEvent(ctx, event);
+        return await this.handleEphemeralEvent(event);
       }
-      return await this.handleRegularEvent(ctx, event);
+      return await this.handleRegularEvent(event);
     } catch (error) {
       if (error instanceof Error) {
         this.logger.error(
@@ -135,22 +131,16 @@ export class EventService {
       : await callback();
   }
 
-  private async handleEphemeralEvent(
-    ctx: ClientContext,
-    event: Event,
-  ): Promise<HandleEventResult> {
-    await this.broadcast(ctx, event);
+  private async handleEphemeralEvent(event: Event): Promise<HandleEventResult> {
+    await this.broadcast(event);
     return { noReplyNeeded: true, success: true };
   }
 
-  private async handleRegularEvent(
-    ctx: ClientContext,
-    event: Event,
-  ): Promise<HandleEventResult> {
+  private async handleRegularEvent(event: Event): Promise<HandleEventResult> {
     const { isDuplicate } = await this.eventRepository.upsert(event);
 
     if (!isDuplicate) {
-      await this.broadcast(ctx, event);
+      await this.broadcast(event);
     }
     return {
       success: true,
@@ -165,8 +155,8 @@ export class EventService {
     return !!exists;
   }
 
-  private async broadcast(ctx: ClientContext, event: Event): Promise<void> {
-    return this.pluginManagerService.broadcast(ctx, event, (_, e) =>
+  private async broadcast(event: Event): Promise<void> {
+    return this.pluginManagerService.broadcast(event, e =>
       this.subscriptionService.broadcast(e),
     );
   }

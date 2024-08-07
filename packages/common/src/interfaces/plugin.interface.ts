@@ -68,13 +68,8 @@ export interface BroadcastPlugin {
   /**
    * This method functions like Koa middleware and is called when an event is broadcasted.
    *
-   * @param ctx The client context
    * @param event The event to broadcast
    * @param next The next function to call the next plugin
    */
-  broadcast(
-    ctx: ClientContext,
-    event: Event,
-    next: () => Promise<void>,
-  ): Promise<void>;
+  broadcast(event: Event, next: () => Promise<void>): Promise<void>;
 }

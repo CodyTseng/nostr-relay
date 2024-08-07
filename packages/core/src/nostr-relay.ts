@@ -203,13 +203,7 @@ export class NostrRelay {
     event: Event,
   ): Promise<HandleEventMessageResult> {
     const ctx = this.getClientContext(client);
-    const callback = (): Promise<HandleEventResult> => {
-      return this.eventService.handleEvent(ctx, event);
-    };
-
-    const handleResult = this.eventHandlingLazyCache
-      ? await this.eventHandlingLazyCache.get(event.id, callback)
-      : await callback();
+    const handleResult = await this.handleEvent(event);
 
     if (handleResult.noReplyNeeded !== true) {
       ctx.sendMessage(
@@ -240,37 +234,26 @@ export class NostrRelay {
     filters: Filter[],
   ): Promise<HandleReqMessageResult> {
     const ctx = this.getClientContext(client);
-    const events: Event[] = [];
-    if (
-      this.domain &&
-      filters.some(filter =>
-        FilterUtils.hasEncryptedDirectMessageKind(filter),
-      ) &&
-      !ctx.pubkey
-    ) {
+    const eventsOrErrorMsg = await this.findEvents(
+      filters,
+      ctx.pubkey,
+      event => {
+        ctx.sendMessage(createOutgoingEventMessage(subscriptionId, event));
+      },
+    );
+
+    if (typeof eventsOrErrorMsg === 'string') {
       ctx.sendMessage(
-        createOutgoingClosedMessage(
-          subscriptionId,
-          "restricted: we can't serve DMs to unauthenticated users, does your client implement NIP-42?",
-        ),
+        createOutgoingClosedMessage(subscriptionId, eventsOrErrorMsg),
       );
       ctx.sendMessage(createOutgoingAuthMessage(ctx.id));
-      return { events };
+      return { events: [] };
     }
-
-    (await this.eventService.find(filters)).forEach(event => {
-      if (this.domain && !EventUtils.checkPermission(event, ctx.pubkey)) {
-        return;
-      }
-
-      events.push(event);
-      ctx.sendMessage(createOutgoingEventMessage(subscriptionId, event));
-    });
 
     ctx.sendMessage(createOutgoingEoseMessage(subscriptionId));
     this.subscriptionService.subscribe(ctx, subscriptionId, filters);
 
-    return { events };
+    return { events: eventsOrErrorMsg };
   }
 
   /**
@@ -350,6 +333,55 @@ export class NostrRelay {
     this.clientContexts.clear();
     this.eventHandlingLazyCache?.clear();
     await this.eventService.destroy();
+  }
+
+  /**
+   * Handle an event.
+   *
+   * @param event The event to handle
+   */
+  async handleEvent(event: Event): Promise<HandleEventResult> {
+    const callback = (): Promise<HandleEventResult> => {
+      return this.eventService.handleEvent(event);
+    };
+
+    return this.eventHandlingLazyCache
+      ? await this.eventHandlingLazyCache.get(event.id, callback)
+      : await callback();
+  }
+
+  /**
+   * Find events by filters.
+   *
+   * @param filters Filters
+   * @param pubkey Public key of the client
+   * @param iteratee Iteratee function to call for each event
+   */
+  async findEvents(
+    filters: Filter[],
+    pubkey?: string,
+    iteratee?: (event: Event) => void,
+  ): Promise<Event[] | string> {
+    const events: Event[] = [];
+    if (
+      this.domain &&
+      filters.some(filter =>
+        FilterUtils.hasEncryptedDirectMessageKind(filter),
+      ) &&
+      !pubkey
+    ) {
+      return "restricted: we can't serve DMs to unauthenticated users, does your client implement NIP-42?";
+    }
+
+    (await this.eventService.find(filters)).forEach(event => {
+      if (this.domain && !EventUtils.checkPermission(event, pubkey)) {
+        return;
+      }
+      events.push(event);
+      iteratee?.(event);
+    });
+
+    return events;
   }
 
   private getClientContext(client: Client): ClientContext {
