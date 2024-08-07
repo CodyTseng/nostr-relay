@@ -112,7 +112,6 @@ This method functions like Koa middleware and is called when an event is broadca
 
 Params:
 
-- `ctx`: The context object of the client.
 - `event`: The event to broadcast.
 - `next`: The next function to call the next plugin.
 
@@ -122,7 +121,7 @@ Example:
 import { BroadcastPlugin } from '@nostr-relay/common';
 
 class RedisBroadcastPlugin implements BroadcastPlugin {
-  async broadcast(ctx, event, next) {
+  async broadcast(event, next) {
     await redis.publish('events', JSON.stringify(event));
     return next();
   }
