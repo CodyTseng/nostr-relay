@@ -28,7 +28,12 @@
     "url": "https://github.com/CodyTseng/nostr-relay/issues"
   },
   "dependencies": {
-    "@nostr-relay/common": "^0.0.24",
     "lru-cache": "^10.1.0"
+  },
+  "devDependencies": {
+    "@nostr-relay/common": "^0.0.24"
+  },
+  "peerDependencies": {
+    "@nostr-relay/common": "^0.0.24"
   }
 }

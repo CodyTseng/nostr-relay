@@ -29,11 +29,14 @@
     "url": "https://github.com/CodyTseng/nostr-relay/issues"
   },
   "dependencies": {
-    "@nostr-relay/common": "^0.0.24",
     "better-sqlite3": "^9.2.2",
     "kysely": "^0.27.3"
   },
   "devDependencies": {
+    "@nostr-relay/common": "^0.0.24",
     "@types/better-sqlite3": "^7.6.8"
+  },
+  "peerDependencies": {
+    "@nostr-relay/common": "^0.0.24"
   }
 }
