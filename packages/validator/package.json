@@ -1,6 +1,6 @@
 {
   "name": "@nostr-relay/validator",
-  "version": "0.0.24",
+  "version": "0.0.25",
   "description": "Easily build your customized Nostr Relay.",
   "author": "codytseng",
   "homepage": "https://github.com/CodyTseng/nostr-relay#readme",
@@ -32,7 +32,7 @@
     "zod-validation-error": "^2.1.0"
   },
   "devDependencies": {
-    "@nostr-relay/common": "^0.0.24"
+    "@nostr-relay/common": "^0.0.25"
   },
   "peerDependencies": {
     "@nostr-relay/common": "^0.0.24"
