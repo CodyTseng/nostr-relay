@@ -1,6 +1,6 @@
 {
   "name": "@nostr-relay/core",
-  "version": "0.0.26",
+  "version": "0.0.27",
   "description": "Easily build your customized Nostr Relay.",
   "author": "codytseng",
   "homepage": "https://github.com/CodyTseng/nostr-relay#readme",
@@ -31,7 +31,7 @@
     "lru-cache": "^10.1.0"
   },
   "devDependencies": {
-    "@nostr-relay/common": "^0.0.26"
+    "@nostr-relay/common": "^0.0.27"
   },
   "peerDependencies": {
     "@nostr-relay/common": ">=0.0.24"
