@@ -20,6 +20,7 @@ import {
   NostrRelayOptions,
   NostrRelayPlugin,
   SubscriptionId,
+  UnauthenticatedError,
 } from '@nostr-relay/common';
 import { EventService } from './services/event.service';
 import { PluginManagerService } from './services/plugin-manager.service';
@@ -234,26 +235,24 @@ export class NostrRelay {
     filters: Filter[],
   ): Promise<HandleReqMessageResult> {
     const ctx = this.getClientContext(client);
-    const eventsOrErrorMsg = await this.findEvents(
-      filters,
-      ctx.pubkey,
-      event => {
+    try {
+      const events = await this.findEvents(filters, ctx.pubkey, event => {
         ctx.sendMessage(createOutgoingEventMessage(subscriptionId, event));
-      },
-    );
+      });
 
-    if (typeof eventsOrErrorMsg === 'string') {
+      ctx.sendMessage(createOutgoingEoseMessage(subscriptionId));
+      this.subscriptionService.subscribe(ctx, subscriptionId, filters);
+
+      return { events };
+    } catch (error) {
       ctx.sendMessage(
-        createOutgoingClosedMessage(subscriptionId, eventsOrErrorMsg),
+        createOutgoingClosedMessage(subscriptionId, error.message),
       );
-      ctx.sendMessage(createOutgoingAuthMessage(ctx.id));
+      if (error instanceof UnauthenticatedError) {
+        ctx.sendMessage(createOutgoingAuthMessage(ctx.id));
+      }
       return { events: [] };
     }
-
-    ctx.sendMessage(createOutgoingEoseMessage(subscriptionId));
-    this.subscriptionService.subscribe(ctx, subscriptionId, filters);
-
-    return { events: eventsOrErrorMsg };
   }
 
   /**
@@ -356,13 +355,12 @@ export class NostrRelay {
    * @param filters Filters
    * @param pubkey Public key of the client
    * @param iteratee Iteratee function to call for each event
-   * @returns Events or an error message
    */
   async findEvents(
     filters: Filter[],
     pubkey?: string,
     iteratee?: (event: Event) => void,
-  ): Promise<Event[] | string> {
+  ): Promise<Event[]> {
     const events: Event[] = [];
     if (
       this.domain &&
@@ -371,7 +369,9 @@ export class NostrRelay {
       ) &&
       !pubkey
     ) {
-      return "restricted: we can't serve DMs to unauthenticated users, does your client implement NIP-42?";
+      throw new UnauthenticatedError(
+        "restricted: we can't serve DMs to unauthenticated users, does your client implement NIP-42?",
+      );
     }
 
     (await this.eventService.find(filters)).forEach(event => {
