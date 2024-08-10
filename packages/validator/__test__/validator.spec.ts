@@ -165,6 +165,34 @@ describe('Validator', () => {
     });
   });
 
+  describe('validateFilter', () => {
+    it('should validate filters', async () => {
+      const filters = [
+        {
+          ids: [
+            '0000000000000000000000000000000000000000000000000000000000000000',
+          ],
+          authors: [
+            '0000000000000000000000000000000000000000000000000000000000000000',
+            '1111111111111111111111111111111111111111111111111111111111111111',
+          ],
+          kinds: [0, 1],
+          since: 1700000000000,
+          until: 1701000000000,
+          limit: 10,
+          '#t': ['hello', 'world'],
+        },
+      ];
+      await expect(validator.validateFilters(filters)).resolves.toEqual(
+        filters,
+      );
+    });
+
+    it('should validate filters with empty array', async () => {
+      await expect(validator.validateFilters([])).resolves.toEqual([]);
+    });
+  });
+
   describe('validateEvent', () => {
     it('should validate event', async () => {
       const event = {

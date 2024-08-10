@@ -14,6 +14,7 @@ import { RawData, RequiredValidatorOptions, ValidatorOptions } from './types';
 export class Validator {
   private readonly incomingMessageSchema: z.ZodType<IncomingMessage>;
   private readonly filterSchema: z.ZodType<Filter>;
+  private readonly filtersSchema: z.ZodType<Filter[]>;
   private readonly eventSchema: z.ZodType<Event>;
 
   /**
@@ -25,6 +26,7 @@ export class Validator {
     const defaultOptions = this.defaultOptions(options);
     this.incomingMessageSchema = createIncomingMessageSchema(defaultOptions);
     this.filterSchema = createFilterSchema(defaultOptions);
+    this.filtersSchema = z.array(this.filterSchema);
     this.eventSchema = createEventSchema(defaultOptions);
   }
 
@@ -48,6 +50,17 @@ export class Validator {
   async validateFilter(data: RawData): Promise<Filter> {
     return await this.errorHandler(() =>
       this.filterSchema.parseAsync(this.prepareData(data)),
+    );
+  }
+
+  /**
+   * Validate filters
+   *
+   * @param data data to validate
+   */
+  async validateFilters(data: RawData): Promise<Filter[]> {
+    return await this.errorHandler(() =>
+      this.filtersSchema.parseAsync(this.prepareData(data)),
     );
   }
 
