@@ -6,8 +6,15 @@ import { Logger } from './logger.interface';
  */
 export type NostrRelayOptions = {
   /**
+   * Hostname of the Nostr Relay server. If not set, NIP-42 is not enabled.
+   * More info: https://github.com/nostr-protocol/nips/blob/master/42.md
+   */
+  hostname?: string;
+  /**
    * Domain name of the Nostr Relay server. If not set, NIP-42 is not enabled.
    * More info: https://github.com/nostr-protocol/nips/blob/master/42.md
+   *
+   * @deprecated Use hostname instead
    */
   domain?: string;
   /**
