@@ -42,7 +42,7 @@ export class NostrRelay {
   private readonly eventHandlingLazyCache:
     | LazyCache<EventId, Promise<HandleEventResult>>
     | undefined;
-  private readonly domain?: string;
+  private readonly hostname?: string;
   private readonly pluginManagerService: PluginManagerService;
 
   private readonly clientContexts = new Map<Client, ClientContext>();
@@ -59,6 +59,9 @@ export class NostrRelay {
   ) {
     this.options = options;
 
+    // if hostname is not set, it means that NIP-42 is not enabled
+    this.hostname = options.hostname ?? options.domain;
+
     const logger = options.logger ?? new ConsoleLoggerService();
     logger.setLogLevel(options.logLevel ?? LogLevel.INFO);
 
@@ -66,7 +69,7 @@ export class NostrRelay {
     this.subscriptionService = new SubscriptionService(
       this.clientContexts,
       logger,
-      !!options.domain,
+      !!this.hostname,
     );
     this.eventService = new EventService(
       eventRepository,
@@ -89,9 +92,6 @@ export class NostrRelay {
         ttl: options.eventHandlingResultCacheTtl,
       });
     }
-
-    // if domain is not set, it means that NIP-42 is not enabled
-    this.domain = options.domain;
   }
 
   /**
@@ -112,7 +112,7 @@ export class NostrRelay {
    */
   handleConnection(client: Client): void {
     const ctx = this.getClientContext(client);
-    if (this.domain) {
+    if (this.hostname) {
       ctx.sendMessage(createOutgoingAuthMessage(ctx.id));
     }
   }
@@ -283,7 +283,7 @@ export class NostrRelay {
     signedEvent: Event,
   ): HandleAuthMessageResult {
     const ctx = this.getClientContext(client);
-    if (!this.domain) {
+    if (!this.hostname) {
       ctx.sendMessage(createOutgoingOkMessage(signedEvent.id, true));
       return { success: true };
     }
@@ -291,7 +291,7 @@ export class NostrRelay {
     const validateErrorMsg = EventUtils.isSignedEventValid(
       signedEvent,
       ctx.id,
-      this.domain,
+      this.hostname,
     );
     if (validateErrorMsg) {
       ctx.sendMessage(
@@ -312,7 +312,7 @@ export class NostrRelay {
    * @param client Client instance, usually a WebSocket
    */
   isAuthorized(client: Client): boolean {
-    return this.domain ? !!this.getClientContext(client).pubkey : true;
+    return this.hostname ? !!this.getClientContext(client).pubkey : true;
   }
 
   /**
@@ -362,7 +362,7 @@ export class NostrRelay {
     iteratee?: (event: Event) => void,
   ): Promise<Event[]> {
     if (
-      this.domain &&
+      this.hostname &&
       filters.some(filter =>
         FilterUtils.hasEncryptedDirectMessageKind(filter),
       ) &&
@@ -377,7 +377,7 @@ export class NostrRelay {
       const events: Event[] = [];
       this.eventService.find$(filters).subscribe({
         next: event => {
-          if (this.domain && !EventUtils.checkPermission(event, pubkey)) {
+          if (this.hostname && !EventUtils.checkPermission(event, pubkey)) {
             return;
           }
           events.push(event);

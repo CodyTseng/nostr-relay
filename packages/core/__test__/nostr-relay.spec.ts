@@ -20,7 +20,7 @@ describe('NostrRelay', () => {
 
   beforeEach(() => {
     nostrRelay = new NostrRelay({} as EventRepository, {
-      domain: 'test',
+      hostname: 'test',
     });
 
     client = {
@@ -119,7 +119,7 @@ describe('NostrRelay', () => {
 
     it('should not cache handle result', async () => {
       const nostrRelayWithoutCache = new NostrRelay({} as EventRepository, {
-        domain: 'test',
+        hostname: 'test',
         eventHandlingResultCacheTtl: 0,
       });
       const event = { id: 'eventId' } as Event;
@@ -254,20 +254,20 @@ describe('NostrRelay', () => {
     });
 
     it('should handle req successfully if NIP-42 is not enabled and filter contains encrypted direct message kind', async () => {
-      const nostrRelayWithoutDomain = new NostrRelay({} as EventRepository);
+      const nostrRelayWithoutHostname = new NostrRelay({} as EventRepository);
       const subscriptionId: SubscriptionId = 'subscriptionId';
       const filters: Filter[] = [{ kinds: [4] }];
       const events = [{ id: 'a', kind: 4 }] as Event[];
-      const ctx = nostrRelayWithoutDomain['getClientContext'](client);
+      const ctx = nostrRelayWithoutHostname['getClientContext'](client);
 
       const mockSubscribe = jest
-        .spyOn(nostrRelayWithoutDomain['subscriptionService'], 'subscribe')
+        .spyOn(nostrRelayWithoutHostname['subscriptionService'], 'subscribe')
         .mockImplementation();
       const mockFind = jest
-        .spyOn(nostrRelayWithoutDomain['eventService'], 'find$')
+        .spyOn(nostrRelayWithoutHostname['eventService'], 'find$')
         .mockReturnValue(from(events));
 
-      const result = await nostrRelayWithoutDomain.handleReqMessage(
+      const result = await nostrRelayWithoutHostname.handleReqMessage(
         client,
         subscriptionId,
         filters,
@@ -331,11 +331,11 @@ describe('NostrRelay', () => {
       );
     });
 
-    it('should return directly if domain is not set', async () => {
-      const nostrRelayWithoutDomain = new NostrRelay({} as EventRepository);
+    it('should return directly if hostname is not set', async () => {
+      const nostrRelayWithoutHostname = new NostrRelay({} as EventRepository);
       const signedEvent = { id: 'eventId' } as Event;
 
-      nostrRelayWithoutDomain.handleAuthMessage(client, signedEvent);
+      nostrRelayWithoutHostname.handleAuthMessage(client, signedEvent);
 
       expect(client.send).toHaveBeenCalledWith(
         JSON.stringify([MessageType.OK, signedEvent.id, true, '']),
@@ -406,10 +406,10 @@ describe('NostrRelay', () => {
   });
 
   describe('isAuthorized', () => {
-    it('should return true if domain is not set', () => {
-      const nostrRelayWithoutDomain = new NostrRelay({} as EventRepository);
+    it('should return true if hostname is not set', () => {
+      const nostrRelayWithoutHostname = new NostrRelay({} as EventRepository);
 
-      expect(nostrRelayWithoutDomain.isAuthorized(client)).toBeTruthy();
+      expect(nostrRelayWithoutHostname.isAuthorized(client)).toBeTruthy();
     });
 
     it('should return false if client is not authenticated', () => {
