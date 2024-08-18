@@ -14,6 +14,10 @@ export class LazyCache<K extends {}, V extends {}> {
     return this.cache.get(key)!;
   }
 
+  set(key: K, value: V): void {
+    this.cache.set(key, value);
+  }
+
   clear(): void {
     this.cache.clear();
   }

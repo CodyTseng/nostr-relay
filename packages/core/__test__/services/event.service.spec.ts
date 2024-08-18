@@ -1,4 +1,13 @@
 import {
+  EMPTY,
+  firstValueFrom,
+  from,
+  interval,
+  lastValueFrom,
+  map,
+  take,
+} from 'rxjs';
+import {
   ClientContext,
   ClientReadyState,
   ConsoleLoggerService,
@@ -7,6 +16,7 @@ import {
   EventRepository,
   EventUtils,
   Filter,
+  toPromise,
 } from '../../../common';
 import { EventService } from '../../src/services/event.service';
 import { PluginManagerService } from '../../src/services/plugin-manager.service';
@@ -26,6 +36,7 @@ describe('eventService', () => {
       find: jest.fn(),
       findOne: jest.fn(),
       destroy: jest.fn(),
+      find$: jest.fn(),
     };
     subscriptionService = new SubscriptionService(
       new Map(),
@@ -49,33 +60,39 @@ describe('eventService', () => {
     });
   });
 
-  describe('find', () => {
+  describe('find$', () => {
     it('should return find result', async () => {
       const filters = [{}] as Filter[];
       const events = [{ id: 'a' }, { id: 'b' }] as Event[];
 
-      jest.spyOn(eventRepository, 'find').mockResolvedValue(events);
-      expect(await eventService.find(filters)).toEqual(events);
+      jest.spyOn(eventRepository, 'find$').mockReturnValue(from(events));
+      expect(await toPromise(eventService.find$(filters))).toEqual(events);
 
-      jest.spyOn(eventRepository, 'find').mockResolvedValue(events);
-      expect(await eventService.find(filters)).toEqual(events);
-
-      jest.spyOn(eventRepository, 'find').mockReturnValue(events);
-      expect(await eventService.find(filters)).toEqual(events);
-
-      jest.spyOn(eventRepository, 'find').mockReturnValue(events);
-      expect(await eventService.find(filters)).toEqual(events);
-
-      expect(await eventService.find([{ search: 'test' }])).toEqual([]);
+      expect(await toPromise(eventService.find$([{ search: 'test' }]))).toEqual(
+        [],
+      );
     });
 
     it('should return distinct result', async () => {
       const filters = [{}] as Filter[];
       const events = [{ id: 'a' }, { id: 'a' }] as Event[];
 
-      jest.spyOn(eventRepository, 'find').mockResolvedValue(events);
+      jest.spyOn(eventRepository, 'find$').mockReturnValue(from(events));
 
-      expect(await eventService.find(filters)).toEqual([events[0]]);
+      expect(await toPromise(eventService.find$(filters))).toEqual([events[0]]);
+    });
+
+    it('should merge multiple results and return distinct result', async () => {
+      jest
+        .spyOn(eventRepository, 'find$')
+        .mockReturnValueOnce(from([{ id: 'a' }, { id: 'b' }] as Event[]));
+      jest
+        .spyOn(eventRepository, 'find$')
+        .mockReturnValueOnce(from([{ id: 'b' }, { id: 'c' }] as Event[]));
+
+      expect(await toPromise(eventService.find$([{}, {}] as Filter[]))).toEqual(
+        [{ id: 'a' }, { id: 'b' }, { id: 'c' }],
+      );
     });
 
     it('should use cache', async () => {
@@ -86,12 +103,49 @@ describe('eventService', () => {
         new ConsoleLoggerService(),
       );
       const filters = [{}, {}] as Filter[];
-      const events = [{ id: 'a' }, { id: 'b' }] as Event[];
+      const events = [{ id: 'a' }, { id: 'b' }, { id: 'c' }] as Event[];
 
-      jest.spyOn(eventRepository, 'find').mockResolvedValue(events);
+      const events$ = interval(10).pipe(
+        take(events.length),
+        map(i => events[i]),
+      );
+      const fakeFind$ = jest
+        .spyOn(eventRepository, 'find$')
+        .mockReturnValue(events$);
 
-      expect(await eventServiceWithCache.find(filters)).toEqual(events);
-      expect(eventRepository.find).toHaveBeenCalledTimes(1);
+      expect(await toPromise(eventServiceWithCache.find$(filters))).toEqual(
+        events,
+      );
+
+      await firstValueFrom(events$);
+      expect(await toPromise(eventServiceWithCache.find$(filters))).toEqual(
+        events,
+      );
+
+      await lastValueFrom(events$);
+      expect(await toPromise(eventServiceWithCache.find$(filters))).toEqual(
+        events,
+      );
+      expect(fakeFind$).toHaveBeenCalledTimes(1);
+    });
+
+    it('should return empty array if no match', async () => {
+      const eventServiceWithCache = new EventService(
+        eventRepository,
+        subscriptionService,
+        pluginManagerService,
+        new ConsoleLoggerService(),
+      );
+      const filters = [{}, {}] as Filter[];
+
+      const fakeFind$ = jest
+        .spyOn(eventRepository, 'find$')
+        .mockReturnValue(EMPTY);
+
+      expect(await toPromise(eventServiceWithCache.find$(filters))).toEqual([]);
+      await new Promise(resolve => setTimeout(resolve, 10));
+      expect(await toPromise(eventServiceWithCache.find$(filters))).toEqual([]);
+      expect(fakeFind$).toHaveBeenCalledTimes(1);
     });
   });
 
@@ -209,50 +263,6 @@ describe('eventService', () => {
       });
       expect(subscriptionService.broadcast).not.toHaveBeenCalled();
       expect(spyLoggerError).toHaveBeenCalled();
-    });
-  });
-
-  describe('mergeSortedEventArrays', () => {
-    it('should return empty array if no arrays are provided', () => {
-      expect(eventService['mergeSortedEventArrays']([])).toEqual([]);
-    });
-
-    it('should merge sorted arrays', () => {
-      const arrays = [
-        [
-          { id: 'a', created_at: 10 },
-          { id: 'b', created_at: 9 },
-          { id: 'b', created_at: 9 },
-          { id: 'c', created_at: 8 },
-          { id: 'c', created_at: 8 },
-          { id: 'd', created_at: 8 },
-          { id: 'e', created_at: 7 },
-        ],
-        [
-          { id: 'b', created_at: 9 },
-          { id: 'c', created_at: 8 },
-          { id: 'd', created_at: 8 },
-          { id: 'f', created_at: 6 },
-        ],
-        [
-          { id: 'a', created_at: 10 },
-          { id: 'b', created_at: 9 },
-          { id: 'c', created_at: 8 },
-          { id: 'g', created_at: 5 },
-          { id: 'h', created_at: 4 },
-        ],
-      ] as Event[][];
-
-      expect(eventService['mergeSortedEventArrays'](arrays)).toEqual([
-        { id: 'a', created_at: 10 },
-        { id: 'b', created_at: 9 },
-        { id: 'c', created_at: 8 },
-        { id: 'd', created_at: 8 },
-        { id: 'e', created_at: 7 },
-        { id: 'f', created_at: 6 },
-        { id: 'g', created_at: 5 },
-        { id: 'h', created_at: 4 },
-      ]);
     });
   });
 

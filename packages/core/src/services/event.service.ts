@@ -8,6 +8,7 @@ import {
   HandleEventResult,
   Logger,
 } from '@nostr-relay/common';
+import { distinct, EMPTY, from, merge, Observable, shareReplay } from 'rxjs';
 import { LazyCache } from '../utils';
 import { PluginManagerService } from './plugin-manager.service';
 import { SubscriptionService } from './subscription.service';
@@ -25,7 +26,7 @@ export class EventService {
   private readonly pluginManagerService: PluginManagerService;
   private readonly logger: Logger;
   private readonly findLazyCache?:
-    | LazyCache<string, Promise<Event[]>>
+    | LazyCache<string, Observable<Event> | Event[]>
     | undefined;
   private readonly createdAtUpperLimit: number | undefined;
   private readonly createdAtLowerLimit: number | undefined;
@@ -55,11 +56,10 @@ export class EventService {
     }
   }
 
-  async find(filters: Filter[]): Promise<Event[]> {
-    const arrays = await Promise.all(
-      filters.map(filter => this.findByFilter(filter)),
+  find$(filters: Filter[]): Observable<Event> {
+    return merge(...filters.map(filter => this.findByFilter$(filter))).pipe(
+      distinct(event => event.id),
     );
-    return this.mergeSortedEventArrays(arrays);
   }
 
   async handleEvent(event: Event): Promise<HandleEventResult> {
@@ -115,20 +115,36 @@ export class EventService {
     }
   }
 
-  private async findByFilter(filter: Filter): Promise<Event[]> {
-    const callback = async (): Promise<Event[]> => {
+  private findByFilter$(filter: Filter): Observable<Event> {
+    const callback = (): Observable<Event> => {
       if (
         filter.search !== undefined &&
         !this.eventRepository.isSearchSupported()
       ) {
-        return [];
+        return EMPTY;
       }
-      return await this.eventRepository.find(filter);
+      const share$ = this.eventRepository
+        .find$(filter)
+        .pipe(shareReplay({ refCount: true }));
+
+      setImmediate(() => {
+        const events: Event[] = [];
+        share$.subscribe({
+          next: event => events.push(event),
+          complete: () => {
+            this.findLazyCache?.set(JSON.stringify(filter), events);
+          },
+        });
+      });
+
+      return share$;
     };
 
-    return this.findLazyCache
-      ? await this.findLazyCache.get(JSON.stringify(filter), callback)
-      : await callback();
+    if (this.findLazyCache) {
+      const cache = this.findLazyCache.get(JSON.stringify(filter), callback);
+      return cache instanceof Observable ? cache : from(cache);
+    }
+    return callback();
   }
 
   private async handleEphemeralEvent(event: Event): Promise<HandleEventResult> {
@@ -159,43 +175,6 @@ export class EventService {
     return this.pluginManagerService.broadcast(event, e =>
       this.subscriptionService.broadcast(e),
     );
-  }
-
-  private mergeSortedEventArrays(arrays: Event[][]): Event[] {
-    if (arrays.length === 0) {
-      return [];
-    }
-
-    function merge(left: Event[], right: Event[]): Event[] {
-      const result: Event[] = [];
-      let leftIndex = 0;
-      let rightIndex = 0;
-
-      while (leftIndex < left.length && rightIndex < right.length) {
-        const leftEvent = left[leftIndex];
-        const rightEvent = right[rightIndex];
-        if (
-          leftEvent.created_at > rightEvent.created_at ||
-          (leftEvent.created_at === rightEvent.created_at &&
-            leftEvent.id < rightEvent.id)
-        ) {
-          result.push(leftEvent);
-          leftIndex++;
-        } else {
-          result.push(rightEvent);
-          rightIndex++;
-        }
-      }
-
-      return result.concat(left.slice(leftIndex), right.slice(rightIndex));
-    }
-
-    let result: Event[] = arrays[0];
-    for (let i = 1; i < arrays.length; i++) {
-      result = merge(result, arrays[i]);
-    }
-
-    return result.filter((e, i, a) => i === 0 || e.id !== a[i - 1]?.id);
   }
 
   async destroy(): Promise<void> {
