@@ -47,7 +47,7 @@ describe('EventUtils', () => {
 
     expect(
       EventUtils.validate(
-        createEvent({ created_at: getTimestampInSeconds() + 101 }),
+        createEvent({ created_at: getTimestampInSeconds() + 200 }),
         { createdAtUpperLimit: 100 },
       ),
     ).toBe(
@@ -55,7 +55,7 @@ describe('EventUtils', () => {
     );
     expect(
       EventUtils.validate(
-        createEvent({ created_at: getTimestampInSeconds() - 101 }),
+        createEvent({ created_at: getTimestampInSeconds() - 200 }),
         { createdAtLowerLimit: 100 },
       ),
     ).toBe(
