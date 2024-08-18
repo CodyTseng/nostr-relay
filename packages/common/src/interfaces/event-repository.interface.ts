@@ -76,7 +76,7 @@ export abstract class EventRepository {
       return query;
     }
     return new Observable(subscriber => {
-      (async () => {
+      (async (): Promise<void> => {
         const events = await query;
         for (const event of events) {
           subscriber.next(event);
