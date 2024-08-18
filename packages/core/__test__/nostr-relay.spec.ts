@@ -1,3 +1,4 @@
+import { from } from 'rxjs';
 import {
   Client,
   ClientContext,
@@ -166,8 +167,8 @@ describe('NostrRelay', () => {
         .spyOn(nostrRelay['subscriptionService'], 'subscribe')
         .mockImplementation();
       const mockFind = jest
-        .spyOn(nostrRelay['eventService'], 'find')
-        .mockResolvedValue(events);
+        .spyOn(nostrRelay['eventService'], 'find$')
+        .mockReturnValue(from(events));
 
       const result = await nostrRelay.handleReqMessage(
         client,
@@ -230,8 +231,8 @@ describe('NostrRelay', () => {
         .spyOn(nostrRelay['subscriptionService'], 'subscribe')
         .mockImplementation();
       const mockFind = jest
-        .spyOn(nostrRelay['eventService'], 'find')
-        .mockResolvedValue(events);
+        .spyOn(nostrRelay['eventService'], 'find$')
+        .mockReturnValue(from(events));
 
       const result = await nostrRelay.handleReqMessage(
         client,
@@ -263,8 +264,8 @@ describe('NostrRelay', () => {
         .spyOn(nostrRelayWithoutDomain['subscriptionService'], 'subscribe')
         .mockImplementation();
       const mockFind = jest
-        .spyOn(nostrRelayWithoutDomain['eventService'], 'find')
-        .mockResolvedValue(events);
+        .spyOn(nostrRelayWithoutDomain['eventService'], 'find$')
+        .mockReturnValue(from(events));
 
       const result = await nostrRelayWithoutDomain.handleReqMessage(
         client,

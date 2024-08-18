@@ -361,7 +361,6 @@ export class NostrRelay {
     pubkey?: string,
     iteratee?: (event: Event) => void,
   ): Promise<Event[]> {
-    const events: Event[] = [];
     if (
       this.domain &&
       filters.some(filter =>
@@ -374,15 +373,20 @@ export class NostrRelay {
       );
     }
 
-    (await this.eventService.find(filters)).forEach(event => {
-      if (this.domain && !EventUtils.checkPermission(event, pubkey)) {
-        return;
-      }
-      events.push(event);
-      iteratee?.(event);
+    return new Promise((resolve, reject) => {
+      const events: Event[] = [];
+      this.eventService.find$(filters).subscribe({
+        next: event => {
+          if (this.domain && !EventUtils.checkPermission(event, pubkey)) {
+            return;
+          }
+          events.push(event);
+          iteratee?.(event);
+        },
+        error: reject,
+        complete: () => resolve(events),
+      });
     });
-
-    return events;
   }
 
   private getClientContext(client: Client): ClientContext {

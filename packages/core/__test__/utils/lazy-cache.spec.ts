@@ -1,7 +1,7 @@
 import { LazyCache } from '../../src/utils';
 
 describe('LazyCache', () => {
-  let cache: LazyCache<string, Promise<string>>;
+  let cache: LazyCache<string, Promise<string> | string>;
 
   beforeEach(() => {
     cache = new LazyCache({ max: 1000 });
@@ -24,6 +24,12 @@ describe('LazyCache', () => {
       expect(results).toEqual(['world', 'world', 'world']);
       expect(callback).toHaveBeenCalledTimes(1);
     });
+  });
+
+  it('set', () => {
+    cache.get('hello', async () => 'world');
+    cache.set('hello', 'world2');
+    expect(cache['cache'].get('hello')).toBe('world2');
   });
 
   it('clear', () => {

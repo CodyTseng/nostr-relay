@@ -1,3 +1,4 @@
+import { firstValueFrom, Observable } from 'rxjs';
 import { Event } from './event.interface';
 import { Filter } from './filter.interface';
 
@@ -40,7 +41,7 @@ export abstract class EventRepository {
    *
    * @param filter Query filter
    */
-  abstract find(filter: Filter): Promise<Event[]> | Event[];
+  abstract find(filter: Filter): Promise<Event[]> | Observable<Event> | Event[];
 
   /**
    * This method is called when the event repository should be closed. You can
@@ -55,7 +56,33 @@ export abstract class EventRepository {
    * @param filter Query filter
    */
   async findOne(filter: Filter): Promise<Event | null> {
-    const [event] = await this.find({ ...filter, limit: 1 });
+    const query = this.find({ ...filter, limit: 1 });
+    if (query instanceof Observable) {
+      return await firstValueFrom(query).catch(() => null);
+    }
+    const [event] = await query;
     return event ?? null;
+  }
+
+  /**
+   * This method doesn't need to be implemented. It's just a helper method for
+   * transforming the `find` method to an observable.
+   *
+   * @param filter Query filter
+   */
+  find$(filter: Filter): Observable<Event> {
+    const query = this.find(filter);
+    if (query instanceof Observable) {
+      return query;
+    }
+    return new Observable(subscriber => {
+      (async () => {
+        const events = await query;
+        for (const event of events) {
+          subscriber.next(event);
+        }
+        subscriber.complete();
+      })();
+    });
   }
 }
