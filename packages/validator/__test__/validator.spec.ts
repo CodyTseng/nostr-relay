@@ -242,4 +242,13 @@ describe('Validator', () => {
       await expect(specValidator.validateEvent(event2)).rejects.toThrow();
     });
   });
+
+  it('get schema', () => {
+    expect(validator.getIncomingMessageSchema()).toBe(
+      validator['incomingMessageSchema'],
+    );
+    expect(validator.getFilterSchema()).toBe(validator['filterSchema']);
+    expect(validator.getFiltersSchema()).toBe(validator['filtersSchema']);
+    expect(validator.getEventSchema()).toBe(validator['eventSchema']);
+  });
 });

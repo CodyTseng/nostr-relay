@@ -75,6 +75,34 @@ export class Validator {
     );
   }
 
+  /**
+   * Get incoming message schema
+   */
+  getIncomingMessageSchema(): z.ZodType<IncomingMessage> {
+    return this.incomingMessageSchema;
+  }
+
+  /**
+   * Get filter schema
+   */
+  getFilterSchema(): z.ZodType<Filter> {
+    return this.filterSchema;
+  }
+
+  /**
+   * Get filters schema
+   */
+  getFiltersSchema(): z.ZodType<Filter[]> {
+    return this.filtersSchema;
+  }
+
+  /**
+   * Get event schema
+   */
+  getEventSchema(): z.ZodType<Event> {
+    return this.eventSchema;
+  }
+
   private async errorHandler<T>(asyncFunc: () => Promise<T>): Promise<T> {
     try {
       return await asyncFunc();
