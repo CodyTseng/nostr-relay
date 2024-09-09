@@ -61,6 +61,8 @@ Full API documentation can be found [here](https://codytseng.github.io/nostr-rel
 
 ## Plugin
 
+[Official plugins](https://github.com/CodyTseng/nostr-relay-plugin)
+
 You can create your own plugin to extend the functionality of the Nostr Relay. A plugin is just an object containing some of the following methods:
 
 ### handleMessage
