@@ -5,8 +5,8 @@ import {
   EventUtils,
   Filter,
   Logger,
+  createOutgoingEventMessage,
 } from '@nostr-relay/common';
-import { createOutgoingEventMessage } from '../utils';
 
 export class SubscriptionService {
   constructor(

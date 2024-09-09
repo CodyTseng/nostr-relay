@@ -1,6 +1,6 @@
+import { MessageType } from '../constants';
 import {
   Event,
-  MessageType,
   OutgoingAuthMessage,
   OutgoingClosedMessage,
   OutgoingEoseMessage,
@@ -8,7 +8,7 @@ import {
   OutgoingNoticeMessage,
   OutgoingOkMessage,
   SubscriptionId,
-} from '@nostr-relay/common';
+} from '../interfaces';
 
 /**
  * Create an outgoing OK message.

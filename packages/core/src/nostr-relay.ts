@@ -21,19 +21,17 @@ import {
   NostrRelayPlugin,
   SubscriptionId,
   UnauthenticatedError,
-} from '@nostr-relay/common';
-import { EventService } from './services/event.service';
-import { PluginManagerService } from './services/plugin-manager.service';
-import { SubscriptionService } from './services/subscription.service';
-import {
-  LazyCache,
   createOutgoingAuthMessage,
   createOutgoingClosedMessage,
   createOutgoingEoseMessage,
   createOutgoingEventMessage,
   createOutgoingNoticeMessage,
   createOutgoingOkMessage,
-} from './utils';
+} from '@nostr-relay/common';
+import { EventService } from './services/event.service';
+import { PluginManagerService } from './services/plugin-manager.service';
+import { SubscriptionService } from './services/subscription.service';
+import { LazyCache } from './utils';
 
 export class NostrRelay {
   private readonly options: NostrRelayOptions;
