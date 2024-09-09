@@ -86,7 +86,7 @@ describe('NostrRelay', () => {
         .spyOn(nostrRelay['eventService'], 'handleEvent')
         .mockResolvedValue(handleResult);
 
-      await nostrRelay.handleEventMessage(client, event);
+      await nostrRelay.handleMessage(client, [MessageType.EVENT, event]);
 
       expect(mockHandleEvent).toHaveBeenCalledWith(event);
       expect(client.send).toHaveBeenCalledWith(JSON.stringify(outgoingMessage));
@@ -107,8 +107,8 @@ describe('NostrRelay', () => {
         .mockResolvedValue({ success: true });
 
       await Promise.all([
-        nostrRelay.handleEventMessage(client, event),
-        nostrRelay.handleEventMessage(client, event),
+        nostrRelay.handleMessage(client, [MessageType.EVENT, event]),
+        nostrRelay.handleMessage(client, [MessageType.EVENT, event]),
       ]);
 
       expect(mockHandleEvent).toHaveBeenCalledTimes(1);
@@ -136,14 +136,37 @@ describe('NostrRelay', () => {
         .mockResolvedValue({ success: true });
 
       await Promise.all([
-        nostrRelayWithoutCache.handleEventMessage(client, event),
-        nostrRelayWithoutCache.handleEventMessage(client, event),
+        nostrRelayWithoutCache.handleMessage(client, [
+          MessageType.EVENT,
+          event,
+        ]),
+        nostrRelayWithoutCache.handleMessage(client, [
+          MessageType.EVENT,
+          event,
+        ]),
       ]);
 
       expect(mockHandleEvent).toHaveBeenCalledTimes(2);
       expect(client.send).toHaveBeenCalledTimes(2);
       expect(client.send).toHaveBeenNthCalledWith(1, outgoingMessageStr);
       expect(client.send).toHaveBeenNthCalledWith(2, outgoingMessageStr);
+    });
+
+    it("should ignore if plugin's beforeHandleEvent returns false", async () => {
+      const event = { id: 'eventId' } as Event;
+      const outgoingMessage: OutgoingOkMessage = [
+        MessageType.OK,
+        event.id,
+        false,
+        'block',
+      ];
+      jest
+        .spyOn(nostrRelay['pluginManagerService'], 'beforeHandleEvent')
+        .mockResolvedValue({ canHandle: false, message: 'block' });
+
+      await nostrRelay.handleMessage(client, [MessageType.EVENT, event]);
+
+      expect(client.send).toHaveBeenCalledWith(JSON.stringify(outgoingMessage));
     });
   });
 
@@ -170,13 +193,16 @@ describe('NostrRelay', () => {
         .spyOn(nostrRelay['eventService'], 'find$')
         .mockReturnValue(from(events));
 
-      const result = await nostrRelay.handleReqMessage(
-        client,
+      const result = await nostrRelay.handleMessage(client, [
+        MessageType.REQ,
         subscriptionId,
-        filters,
-      );
+        ...filters,
+      ]);
 
-      expect(result).toEqual({ events: events.slice(0, 2) });
+      expect(result).toEqual({
+        messageType: MessageType.REQ,
+        events: events.slice(0, 2),
+      });
       expect(mockSubscribe).toHaveBeenCalledWith(ctx, subscriptionId, filters);
       expect(mockFind).toHaveBeenCalledWith(filters);
       expect(client.send).toHaveBeenNthCalledWith(
@@ -197,13 +223,13 @@ describe('NostrRelay', () => {
       const subscriptionId: SubscriptionId = 'subscriptionId';
       const filters: Filter[] = [{ kinds: [4] }];
 
-      const result = await nostrRelay.handleReqMessage(
-        client,
+      const result = await nostrRelay.handleMessage(client, [
+        MessageType.REQ,
         subscriptionId,
-        filters,
-      );
+        ...filters,
+      ]);
 
-      expect(result).toEqual({ events: [] });
+      expect(result).toEqual({ messageType: MessageType.REQ, events: [] });
       expect(client.send).toHaveBeenNthCalledWith(
         1,
         JSON.stringify([
@@ -234,13 +260,13 @@ describe('NostrRelay', () => {
         .spyOn(nostrRelay['eventService'], 'find$')
         .mockReturnValue(from(events));
 
-      const result = await nostrRelay.handleReqMessage(
-        client,
+      const result = await nostrRelay.handleMessage(client, [
+        MessageType.REQ,
         subscriptionId,
-        filters,
-      );
+        ...filters,
+      ]);
 
-      expect(result).toEqual({ events });
+      expect(result).toEqual({ messageType: MessageType.REQ, events });
       expect(mockSubscribe).toHaveBeenCalledWith(ctx, subscriptionId, filters);
       expect(mockFind).toHaveBeenCalledWith(filters);
       expect(client.send).toHaveBeenNthCalledWith(
@@ -267,13 +293,13 @@ describe('NostrRelay', () => {
         .spyOn(nostrRelayWithoutHostname['eventService'], 'find$')
         .mockReturnValue(from(events));
 
-      const result = await nostrRelayWithoutHostname.handleReqMessage(
-        client,
+      const result = await nostrRelayWithoutHostname.handleMessage(client, [
+        MessageType.REQ,
         subscriptionId,
-        filters,
-      );
+        ...filters,
+      ]);
 
-      expect(result).toEqual({ events });
+      expect(result).toEqual({ messageType: MessageType.REQ, events });
       expect(mockSubscribe).toHaveBeenCalledWith(ctx, subscriptionId, filters);
       expect(mockFind).toHaveBeenCalledWith(filters);
       expect(client.send).toHaveBeenNthCalledWith(
@@ -295,7 +321,7 @@ describe('NostrRelay', () => {
         .mockReturnValue(true);
       const ctx = nostrRelay['getClientContext'](client);
 
-      nostrRelay.handleCloseMessage(client, subscriptionId);
+      nostrRelay.handleMessage(client, [MessageType.CLOSE, subscriptionId]);
 
       expect(mockUnsubscribe).toHaveBeenCalledWith(ctx, subscriptionId);
     });
@@ -310,7 +336,7 @@ describe('NostrRelay', () => {
       jest.spyOn(EventUtils, 'getAuthor').mockReturnValue(pubkey);
 
       nostrRelay.handleConnection(client);
-      nostrRelay.handleAuthMessage(client, signedEvent);
+      nostrRelay.handleMessage(client, [MessageType.AUTH, signedEvent]);
 
       expect(client.send).toHaveBeenCalledWith(
         JSON.stringify([MessageType.OK, signedEvent.id, true, '']),
@@ -324,7 +350,7 @@ describe('NostrRelay', () => {
       jest.spyOn(EventUtils, 'isSignedEventValid').mockReturnValue('invalid');
 
       nostrRelay.handleConnection(client);
-      nostrRelay.handleAuthMessage(client, signedEvent);
+      nostrRelay.handleMessage(client, [MessageType.AUTH, signedEvent]);
 
       expect(client.send).toHaveBeenCalledWith(
         JSON.stringify([MessageType.OK, signedEvent.id, false, 'invalid']),
@@ -335,7 +361,10 @@ describe('NostrRelay', () => {
       const nostrRelayWithoutHostname = new NostrRelay({} as EventRepository);
       const signedEvent = { id: 'eventId' } as Event;
 
-      nostrRelayWithoutHostname.handleAuthMessage(client, signedEvent);
+      nostrRelayWithoutHostname.handleMessage(client, [
+        MessageType.AUTH,
+        signedEvent,
+      ]);
 
       expect(client.send).toHaveBeenCalledWith(
         JSON.stringify([MessageType.OK, signedEvent.id, true, '']),
@@ -343,66 +372,12 @@ describe('NostrRelay', () => {
     });
   });
 
-  describe('handleMessage', () => {
-    it('should handle event message', async () => {
-      const mockEvent = jest
-        .spyOn(nostrRelay, 'handleEventMessage')
-        .mockImplementation();
-      const event = { id: 'eventId' } as Event;
-
-      await nostrRelay.handleMessage(client, [MessageType.EVENT, event]);
-
-      expect(mockEvent).toHaveBeenCalledWith(client, event);
-    });
-
-    it('should handle req message', async () => {
-      const mockReq = jest
-        .spyOn(nostrRelay, 'handleReqMessage')
-        .mockImplementation();
-      const subscriptionId: SubscriptionId = 'subscriptionId';
-      const filters: Filter[] = [{ kinds: [0, 1] }, { ids: ['a'] }];
-
-      await nostrRelay.handleMessage(client, [
-        MessageType.REQ,
-        subscriptionId,
-        ...filters,
-      ]);
-
-      expect(mockReq).toHaveBeenCalledWith(client, subscriptionId, filters);
-    });
-
-    it('should handle close message', async () => {
-      const mockClose = jest
-        .spyOn(nostrRelay, 'handleCloseMessage')
-        .mockImplementation();
-      const subscriptionId: SubscriptionId = 'subscriptionId';
-
-      await nostrRelay.handleMessage(client, [
-        MessageType.CLOSE,
-        subscriptionId,
-      ]);
-
-      expect(mockClose).toHaveBeenCalledWith(client, subscriptionId);
-    });
-
-    it('should handle auth message', async () => {
-      const mockAuth = jest
-        .spyOn(nostrRelay, 'handleAuthMessage')
-        .mockImplementation();
-      const signedEvent = { id: 'eventId' } as Event;
-
-      await nostrRelay.handleMessage(client, [MessageType.AUTH, signedEvent]);
-
-      expect(mockAuth).toHaveBeenCalledWith(client, signedEvent);
-    });
-
-    it('should return notice if message type is invalid', async () => {
-      await nostrRelay.handleMessage(client, ['unknown' as any, 'test']);
-
-      expect(client.send).toHaveBeenCalledWith(
-        JSON.stringify([MessageType.NOTICE, 'invalid: unknown message type']),
-      );
-    });
+  it('unknown message type', async () => {
+    const result = await nostrRelay.handleMessage(client, ['unknown'] as any);
+    expect(result).toBeUndefined();
+    expect(client.send).toHaveBeenCalledWith(
+      JSON.stringify([MessageType.NOTICE, 'invalid: unknown message type']),
+    );
   });
 
   describe('isAuthorized', () => {

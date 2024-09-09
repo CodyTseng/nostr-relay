@@ -8,8 +8,6 @@ import {
   take,
 } from 'rxjs';
 import {
-  ClientContext,
-  ClientReadyState,
   ConsoleLoggerService,
   Event,
   EventKind,
@@ -27,7 +25,6 @@ describe('eventService', () => {
   let eventRepository: EventRepository;
   let subscriptionService: SubscriptionService;
   let pluginManagerService: PluginManagerService;
-  let ctx: ClientContext;
 
   beforeEach(() => {
     eventRepository = {
@@ -54,10 +51,6 @@ describe('eventService', () => {
         filterResultCacheTtl: 0,
       },
     );
-    ctx = new ClientContext({
-      readyState: ClientReadyState.OPEN,
-      send: jest.fn(),
-    });
   });
 
   describe('find$', () => {
@@ -155,7 +148,7 @@ describe('eventService', () => {
         await eventService.handleEvent({
           kind: EventKind.AUTHENTICATION,
         } as Event),
-      ).toEqual({ success: true, noReplyNeeded: true });
+      ).toEqual({ success: true });
       expect(eventRepository.findOne).not.toHaveBeenCalled();
       expect(eventRepository.upsert).not.toHaveBeenCalled();
       expect(subscriptionService.broadcast).not.toHaveBeenCalled();
@@ -190,7 +183,6 @@ describe('eventService', () => {
       jest.spyOn(EventUtils, 'validate').mockReturnValue(undefined);
 
       expect(await eventService.handleEvent(event)).toEqual({
-        noReplyNeeded: true,
         success: true,
       });
       expect(subscriptionService.broadcast).toHaveBeenCalledWith(event);

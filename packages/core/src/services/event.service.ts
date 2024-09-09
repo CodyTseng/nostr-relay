@@ -64,7 +64,7 @@ export class EventService {
 
   async handleEvent(event: Event): Promise<HandleEventResult> {
     if (event.kind === EventKind.AUTHENTICATION) {
-      return { success: true, noReplyNeeded: true };
+      return { success: true };
     }
 
     const exists = await this.checkEventExists(event);
@@ -149,7 +149,7 @@ export class EventService {
 
   private async handleEphemeralEvent(event: Event): Promise<HandleEventResult> {
     await this.broadcast(event);
-    return { noReplyNeeded: true, success: true };
+    return { success: true };
   }
 
   private async handleRegularEvent(event: Event): Promise<HandleEventResult> {

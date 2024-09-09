@@ -22,12 +22,16 @@ describe('PluginManagerService', () => {
     it('should register plugin', () => {
       const plugin = {
         handleMessage: jest.fn(),
+        beforeHandleEvent: jest.fn(),
         broadcast: jest.fn(),
       };
 
       pluginManagerService.register(plugin);
 
       expect(pluginManagerService['handleMessagePlugins']).toEqual([plugin]);
+      expect(pluginManagerService['beforeHandleEventPlugins']).toEqual([
+        plugin,
+      ]);
       expect(pluginManagerService['broadcastPlugins']).toEqual([plugin]);
     });
 
@@ -126,6 +130,60 @@ describe('PluginManagerService', () => {
           async () => {},
         ),
       ).rejects.toThrow('next() called multiple times');
+    });
+  });
+
+  describe('beforeHandleEvent', () => {
+    it('should call plugins in order', async () => {
+      const arr: number[] = [];
+      pluginManagerService.register(
+        {
+          beforeHandleEvent: async () => {
+            arr.push(1);
+            return { canHandle: true };
+          },
+        },
+        {
+          beforeHandleEvent: async () => {
+            arr.push(2);
+            return { canHandle: true };
+          },
+        },
+      );
+
+      const result = await pluginManagerService.beforeHandleEvent(
+        ctx,
+        {} as Event,
+      );
+
+      expect(arr).toEqual([1, 2]);
+      expect(result).toEqual({ canHandle: true });
+    });
+
+    it('should return result if canHandle is false', async () => {
+      const arr: number[] = [];
+      pluginManagerService.register(
+        {
+          beforeHandleEvent: async () => {
+            arr.push(1);
+            return { canHandle: false, message: 'block' };
+          },
+        },
+        {
+          beforeHandleEvent: async () => {
+            arr.push(2);
+            return { canHandle: true };
+          },
+        },
+      );
+
+      const result = await pluginManagerService.beforeHandleEvent(
+        ctx,
+        {} as Event,
+      );
+
+      expect(arr).toEqual([1]);
+      expect(result).toEqual({ canHandle: false, message: 'block' });
     });
   });
 

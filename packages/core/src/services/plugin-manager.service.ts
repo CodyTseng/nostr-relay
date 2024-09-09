@@ -1,4 +1,6 @@
 import {
+  BeforeHandleEventPlugin,
+  BeforeHandleEventResult,
   BroadcastPlugin,
   ClientContext,
   Event,
@@ -11,14 +13,18 @@ import {
 
 export class PluginManagerService {
   private readonly handleMessagePlugins: HandleMessagePlugin[] = [];
+  private readonly beforeHandleEventPlugins: BeforeHandleEventPlugin[] = [];
   private readonly broadcastPlugins: BroadcastPlugin[] = [];
 
   register(...plugins: NostrRelayPlugin[]): PluginManagerService {
     plugins.forEach(plugin => {
-      if (this.hasHandleMessagePlugin(plugin)) {
+      if (this.isHandleMessagePlugin(plugin)) {
         this.handleMessagePlugins.push(plugin);
       }
-      if (this.hasBroadcastPlugin(plugin)) {
+      if (this.isBeforeHandleEventPlugin(plugin)) {
+        this.beforeHandleEventPlugins.push(plugin);
+      }
+      if (this.isBroadcastPlugin(plugin)) {
         this.broadcastPlugins.push(plugin);
       }
     });
@@ -40,6 +46,19 @@ export class PluginManagerService {
       ctx,
       message,
     );
+  }
+
+  async beforeHandleEvent(
+    ctx: ClientContext,
+    event: Event,
+  ): Promise<BeforeHandleEventResult> {
+    for (const plugin of this.beforeHandleEventPlugins) {
+      const result = await plugin.beforeHandleEvent(ctx, event);
+      if (!result.canHandle) {
+        return result;
+      }
+    }
+    return { canHandle: true };
   }
 
   async broadcast(
@@ -72,15 +91,24 @@ export class PluginManagerService {
     }
   }
 
-  private hasHandleMessagePlugin(
+  private isHandleMessagePlugin(
     plugin: NostrRelayPlugin,
   ): plugin is HandleMessagePlugin {
     return typeof (plugin as HandleMessagePlugin).handleMessage === 'function';
   }
 
-  private hasBroadcastPlugin(
+  private isBroadcastPlugin(
     plugin: NostrRelayPlugin,
   ): plugin is BroadcastPlugin {
     return typeof (plugin as BroadcastPlugin).broadcast === 'function';
+  }
+
+  private isBeforeHandleEventPlugin(
+    plugin: NostrRelayPlugin,
+  ): plugin is BeforeHandleEventPlugin {
+    return (
+      typeof (plugin as BeforeHandleEventPlugin).beforeHandleEvent ===
+      'function'
+    );
   }
 }

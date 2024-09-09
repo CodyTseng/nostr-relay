@@ -151,10 +151,9 @@ export class NostrRelay {
     ctx: ClientContext,
     message: IncomingMessage,
   ): Promise<HandleMessageResult> {
-    const client = ctx.client;
     if (message[0] === MessageType.EVENT) {
       const [, event] = message;
-      const result = await this.handleEventMessage(client, event);
+      const result = await this.handleEventMessage(ctx, event);
       return {
         messageType: MessageType.EVENT,
         ...result,
@@ -162,11 +161,7 @@ export class NostrRelay {
     }
     if (message[0] === MessageType.REQ) {
       const [, subscriptionId, ...filters] = message;
-      const result = await this.handleReqMessage(
-        client,
-        subscriptionId,
-        filters,
-      );
+      const result = await this.handleReqMessage(ctx, subscriptionId, filters);
       return {
         messageType: MessageType.REQ,
         ...result,
@@ -174,7 +169,7 @@ export class NostrRelay {
     }
     if (message[0] === MessageType.CLOSE) {
       const [, subscriptionId] = message;
-      const result = this.handleCloseMessage(client, subscriptionId);
+      const result = this.handleCloseMessage(ctx, subscriptionId);
       return {
         messageType: MessageType.CLOSE,
         ...result,
@@ -182,7 +177,7 @@ export class NostrRelay {
     }
     if (message[0] === MessageType.AUTH) {
       const [, signedEvent] = message;
-      const result = this.handleAuthMessage(client, signedEvent);
+      const result = this.handleAuthMessage(ctx, signedEvent);
       return {
         messageType: MessageType.AUTH,
         ...result,
@@ -193,48 +188,39 @@ export class NostrRelay {
     );
   }
 
-  /**
-   * Handle an EVENT message from a client.
-   *
-   * @param client Client instance, usually a WebSocket
-   * @param event Event to handle
-   */
-  async handleEventMessage(
-    client: Client,
+  private async handleEventMessage(
+    ctx: ClientContext,
     event: Event,
   ): Promise<HandleEventMessageResult> {
-    const ctx = this.getClientContext(client);
-    const handleResult = await this.handleEvent(event);
+    let handleResult: HandleEventResult;
+    const beforeHandleEventResult =
+      await this.pluginManagerService.beforeHandleEvent(ctx, event);
 
-    if (handleResult.noReplyNeeded !== true) {
-      ctx.sendMessage(
-        createOutgoingOkMessage(
-          event.id,
-          handleResult.success,
-          handleResult.message,
-        ),
-      );
+    if (!beforeHandleEventResult.canHandle) {
+      handleResult = {
+        success: false,
+        message: beforeHandleEventResult.message,
+      };
+    } else {
+      handleResult = await this.handleEvent(event);
     }
 
-    return {
-      success: handleResult.success,
-      message: handleResult.message,
-    };
+    ctx.sendMessage(
+      createOutgoingOkMessage(
+        event.id,
+        handleResult.success,
+        handleResult.message,
+      ),
+    );
+
+    return handleResult;
   }
 
-  /**
-   * Handle a REQ message from a client.
-   *
-   * @param client Client instance, usually a WebSocket
-   * @param subscriptionId Subscription ID
-   * @param filters Filters
-   */
-  async handleReqMessage(
-    client: Client,
+  private async handleReqMessage(
+    ctx: ClientContext,
     subscriptionId: SubscriptionId,
     filters: Filter[],
   ): Promise<HandleReqMessageResult> {
-    const ctx = this.getClientContext(client);
     try {
       const events = await this.findEvents(filters, ctx.pubkey, event => {
         ctx.sendMessage(createOutgoingEventMessage(subscriptionId, event));
@@ -255,34 +241,18 @@ export class NostrRelay {
     }
   }
 
-  /**
-   * Handle a CLOSE message from a client.
-   *
-   * @param client Client instance, usually a WebSocket
-   * @param subscriptionId Subscription ID
-   */
-  handleCloseMessage(
-    client: Client,
+  private handleCloseMessage(
+    ctx: ClientContext,
     subscriptionId: SubscriptionId,
   ): HandleCloseMessageResult {
-    this.subscriptionService.unsubscribe(
-      this.getClientContext(client),
-      subscriptionId,
-    );
+    this.subscriptionService.unsubscribe(ctx, subscriptionId);
     return { success: true };
   }
 
-  /**
-   * Handle an AUTH message from a client.
-   *
-   * @param client Client instance, usually a WebSocket
-   * @param signedEvent Signed event
-   */
-  handleAuthMessage(
-    client: Client,
+  private handleAuthMessage(
+    ctx: ClientContext,
     signedEvent: Event,
   ): HandleAuthMessageResult {
-    const ctx = this.getClientContext(client);
     if (!this.hostname) {
       ctx.sendMessage(createOutgoingOkMessage(signedEvent.id, true));
       return { success: true };

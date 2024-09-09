@@ -3,14 +3,31 @@ import { Event } from './event.interface';
 import { HandleMessageResult } from './handle-result.interface';
 import { IncomingMessage } from './message.interface';
 
-export type NostrRelayPlugin = HandleMessagePlugin | BroadcastPlugin;
+/**
+ * The result of the `beforeHandleEvent` method.
+ */
+export type BeforeHandleEventResult = {
+  /**
+   * If the event should be handled. If the value is false, the event will be ignored.
+   */
+  canHandle: boolean;
+
+  /**
+   * The message to send to the client if the event is ignored.
+   */
+  message?: string;
+};
+
+export type NostrRelayPlugin =
+  | HandleMessagePlugin
+  | BeforeHandleEventPlugin
+  | BroadcastPlugin;
 
 /**
- * A plugin that will be called when a new message is received from a client.
+ * The plugin implement this interface will be called when a new message is received from a client.
  *
  * @example
  * ```ts
- * // message logger plugin
  * class MessageLoggerPlugin implements HandleMessagePlugin {
  *   async handleMessage(ctx, message, next) {
  *     const startTime = Date.now();
@@ -18,20 +35,6 @@ export type NostrRelayPlugin = HandleMessagePlugin | BroadcastPlugin;
  *     const result = await next();
  *     console.log('Message processed in', Date.now() - startTime, 'ms');
  *     return result;
- *   }
- * }
- *
- * // blacklist plugin
- * class BlacklistPlugin implements HandleMessagePlugin {
- *   blacklist = [
- *     // ...
- *   ];
- *
- *   async handleMessage(ctx, message, next) {
- *     if (message[0] === 'EVENT' && blacklist.includes(message[1].pubkey)) {
- *       return;
- *     }
- *     return next();
  *   }
  * }
  * ```
@@ -52,7 +55,41 @@ export interface HandleMessagePlugin {
 }
 
 /**
- * A plugin that will be called when an event is broadcasted.
+ * The plugin implement this interface will be called before handling an event.
+ * You can use this interface to implement a guard for events.
+ *
+ * @example
+ * ```ts
+ * class BlacklistGuardPlugin implements BeforeHandleEventPlugin {
+ *   private blacklist = [
+ *     // ...
+ *   ];
+ *
+ *   beforeHandleEvent(_, event) {
+ *     const canHandle = !this.blacklist.includes(event.pubkey);
+ *     return {
+ *       canHandle,
+ *       message: canHandle ? undefined : 'block: you are blacklisted',
+ *     };
+ *   }
+ * }
+ * ```
+ */
+export interface BeforeHandleEventPlugin {
+  /**
+   * This method will be called before handling an event.
+   *
+   * @param ctx The client context
+   * @param event The event will be handled
+   */
+  beforeHandleEvent(
+    ctx: ClientContext,
+    event: Event,
+  ): Promise<BeforeHandleEventResult> | BeforeHandleEventResult;
+}
+
+/**
+ * The plugin implement this interface will be called when an event is broadcasted.
  *
  * @example
  * ```ts

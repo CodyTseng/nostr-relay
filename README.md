@@ -78,7 +78,6 @@ Example:
 ```typescript
 import { HandleMessagePlugin } from '@nostr-relay/common';
 
-// message logger plugin
 class MessageLoggerPlugin implements HandleMessagePlugin {
   async handleMessage(ctx, message, next) {
     const startTime = Date.now();
@@ -89,21 +88,38 @@ class MessageLoggerPlugin implements HandleMessagePlugin {
   }
 }
 
-// blacklist plugin
-class BlacklistPlugin implements HandleMessagePlugin {
-  blacklist = [
+relay.register(new MessageLoggerPlugin());
+```
+
+### beforeHandleEvent
+
+This method will be called before handling an event. If the method returns false, the event will be ignored.
+
+params:
+
+- `ctx`: The context object of the client.
+- `event`: The incoming event.
+
+Example:
+
+```typescript
+import { HandleMessagePlugin } from '@nostr-relay/common';
+
+class BlacklistGuardPlugin implements BeforeHandleEventPlugin {
+  private blacklist = [
     // ...
   ];
 
-  async handleMessage(ctx, message, next) {
-    if (message[0] === 'EVENT' && blacklist.includes(message[1].pubkey)) {
-      return;
-    }
-    return next();
+  beforeHandleEvent(_, event) {
+    const canHandle = !this.blacklist.includes(event.pubkey);
+    return {
+      canHandle,
+      message: canHandle ? undefined : 'block: you are blacklisted',
+    };
   }
 }
 
-relay.register(new MessageLoggerPlugin(), new BlacklistPlugin());
+relay.register(new BlacklistGuardPlugin());
 ```
 
 ### broadcast
