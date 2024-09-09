@@ -37,6 +37,6 @@
     "@types/better-sqlite3": "^7.6.8"
   },
   "peerDependencies": {
-    "@nostr-relay/common": ">=0.0.24"
+    "@nostr-relay/common": ">=0.0.30"
   }
 }

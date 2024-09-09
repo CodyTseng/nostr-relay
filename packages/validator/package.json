@@ -35,6 +35,6 @@
     "@nostr-relay/common": "^0.0.29"
   },
   "peerDependencies": {
-    "@nostr-relay/common": ">=0.0.24"
+    "@nostr-relay/common": ">=0.0.30"
   }
 }
