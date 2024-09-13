@@ -63,6 +63,15 @@ export class EventService {
   }
 
   async handleEvent(event: Event): Promise<HandleEventResult> {
+    const beforeHandleEventResult =
+      await this.pluginManagerService.beforeHandleEvent(event);
+    if (!beforeHandleEventResult.canHandle) {
+      return {
+        success: false,
+        message: beforeHandleEventResult.message,
+      };
+    }
+
     if (event.kind === EventKind.AUTHENTICATION) {
       return { success: true };
     }

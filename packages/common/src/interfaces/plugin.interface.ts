@@ -65,7 +65,7 @@ export interface HandleMessagePlugin {
  *     // ...
  *   ];
  *
- *   beforeHandleEvent(_, event) {
+ *   beforeHandleEvent(event) {
  *     const canHandle = !this.blacklist.includes(event.pubkey);
  *     return {
  *       canHandle,
@@ -79,11 +79,9 @@ export interface BeforeHandleEventPlugin {
   /**
    * This method will be called before handling an event.
    *
-   * @param ctx The client context
    * @param event The event will be handled
    */
   beforeHandleEvent(
-    ctx: ClientContext,
     event: Event,
   ): Promise<BeforeHandleEventResult> | BeforeHandleEventResult;
 }

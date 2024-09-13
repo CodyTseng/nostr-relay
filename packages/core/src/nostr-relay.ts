@@ -190,18 +190,7 @@ export class NostrRelay {
     ctx: ClientContext,
     event: Event,
   ): Promise<HandleEventMessageResult> {
-    let handleResult: HandleEventResult;
-    const beforeHandleEventResult =
-      await this.pluginManagerService.beforeHandleEvent(ctx, event);
-
-    if (!beforeHandleEventResult.canHandle) {
-      handleResult = {
-        success: false,
-        message: beforeHandleEventResult.message,
-      };
-    } else {
-      handleResult = await this.handleEvent(event);
-    }
+    const handleResult = await this.handleEvent(event);
 
     ctx.sendMessage(
       createOutgoingOkMessage(

@@ -151,23 +151,6 @@ describe('NostrRelay', () => {
       expect(client.send).toHaveBeenNthCalledWith(1, outgoingMessageStr);
       expect(client.send).toHaveBeenNthCalledWith(2, outgoingMessageStr);
     });
-
-    it("should ignore if plugin's beforeHandleEvent returns false", async () => {
-      const event = { id: 'eventId' } as Event;
-      const outgoingMessage: OutgoingOkMessage = [
-        MessageType.OK,
-        event.id,
-        false,
-        'block',
-      ];
-      jest
-        .spyOn(nostrRelay['pluginManagerService'], 'beforeHandleEvent')
-        .mockResolvedValue({ canHandle: false, message: 'block' });
-
-      await nostrRelay.handleMessage(client, [MessageType.EVENT, event]);
-
-      expect(client.send).toHaveBeenCalledWith(JSON.stringify(outgoingMessage));
-    });
   });
 
   describe('req', () => {

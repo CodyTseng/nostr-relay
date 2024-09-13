@@ -99,7 +99,6 @@ This method will be called before handling an event. If the method returns false
 
 params:
 
-- `ctx`: The context object of the client.
 - `event`: The incoming event.
 
 Example:
@@ -112,7 +111,7 @@ class BlacklistGuardPlugin implements BeforeHandleEventPlugin {
     // ...
   ];
 
-  beforeHandleEvent(_, event) {
+  beforeHandleEvent(event) {
     const canHandle = !this.blacklist.includes(event.pubkey);
     return {
       canHandle,

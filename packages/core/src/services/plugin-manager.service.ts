@@ -48,12 +48,9 @@ export class PluginManagerService {
     );
   }
 
-  async beforeHandleEvent(
-    ctx: ClientContext,
-    event: Event,
-  ): Promise<BeforeHandleEventResult> {
+  async beforeHandleEvent(event: Event): Promise<BeforeHandleEventResult> {
     for (const plugin of this.beforeHandleEventPlugins) {
-      const result = await plugin.beforeHandleEvent(ctx, event);
+      const result = await plugin.beforeHandleEvent(event);
       if (!result.canHandle) {
         return result;
       }

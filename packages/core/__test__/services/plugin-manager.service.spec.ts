@@ -151,10 +151,7 @@ describe('PluginManagerService', () => {
         },
       );
 
-      const result = await pluginManagerService.beforeHandleEvent(
-        ctx,
-        {} as Event,
-      );
+      const result = await pluginManagerService.beforeHandleEvent({} as Event);
 
       expect(arr).toEqual([1, 2]);
       expect(result).toEqual({ canHandle: true });
@@ -177,10 +174,7 @@ describe('PluginManagerService', () => {
         },
       );
 
-      const result = await pluginManagerService.beforeHandleEvent(
-        ctx,
-        {} as Event,
-      );
+      const result = await pluginManagerService.beforeHandleEvent({} as Event);
 
       expect(arr).toEqual([1]);
       expect(result).toEqual({ canHandle: false, message: 'block' });

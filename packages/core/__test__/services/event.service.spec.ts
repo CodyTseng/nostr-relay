@@ -256,6 +256,18 @@ describe('eventService', () => {
       expect(subscriptionService.broadcast).not.toHaveBeenCalled();
       expect(spyLoggerError).toHaveBeenCalled();
     });
+
+    it('should return directly if beforeHandleEvent return false', async () => {
+      jest.spyOn(pluginManagerService, 'beforeHandleEvent').mockResolvedValue({
+        canHandle: false,
+        message: 'block: test',
+      });
+
+      expect(await eventService.handleEvent({} as Event)).toEqual({
+        success: false,
+        message: 'block: test',
+      });
+    });
   });
 
   describe('destroy', () => {
