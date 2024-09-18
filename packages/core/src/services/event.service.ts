@@ -9,7 +9,7 @@ import {
   Logger,
 } from '@nostr-relay/common';
 import { distinct, EMPTY, from, merge, Observable, shareReplay } from 'rxjs';
-import { LazyCache } from '../utils';
+import { LazyCache, md5 } from '../utils';
 import { PluginManagerService } from './plugin-manager.service';
 import { SubscriptionService } from './subscription.service';
 
@@ -141,7 +141,7 @@ export class EventService {
         share$.subscribe({
           next: event => events.push(event),
           complete: () => {
-            this.findLazyCache?.set(JSON.stringify(filter), events);
+            this.findLazyCache?.set(md5(JSON.stringify(filter)), events);
           },
         });
       });
@@ -150,7 +150,10 @@ export class EventService {
     };
 
     if (this.findLazyCache) {
-      const cache = this.findLazyCache.get(JSON.stringify(filter), callback);
+      const cache = this.findLazyCache.get(
+        md5(JSON.stringify(filter)),
+        callback,
+      );
       return cache instanceof Observable ? cache : from(cache);
     }
     return callback();
