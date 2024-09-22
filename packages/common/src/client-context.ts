@@ -34,6 +34,11 @@ export class ClientContext {
   pubkey: string | undefined;
 
   /**
+   * IP address of the client.
+   */
+  ip: string | undefined;
+
+  /**
    * Create a new ClientContext instance. Usually you don't need to create this.
    *
    * @param client Client instance, usually a WebSocket
