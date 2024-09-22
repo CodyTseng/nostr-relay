@@ -107,9 +107,10 @@ export class NostrRelay {
    * client connects to the Nostr Relay server.
    *
    * @param client Client instance, usually a WebSocket
+   * @param ip IP address of the client
    */
-  handleConnection(client: Client): void {
-    const ctx = this.getClientContext(client);
+  handleConnection(client: Client, ip?: string): void {
+    const ctx = this.getClientContext(client, ip);
     if (this.hostname) {
       ctx.sendMessage(createOutgoingAuthMessage(ctx.id));
     }
@@ -346,13 +347,14 @@ export class NostrRelay {
     });
   }
 
-  private getClientContext(client: Client): ClientContext {
+  private getClientContext(client: Client, ip?: string): ClientContext {
     const ctx = this.clientContexts.get(client);
     if (ctx) return ctx;
 
     const newCtx = new ClientContext(client, {
       maxSubscriptionsPerClient: this.options.maxSubscriptionsPerClient,
     });
+    newCtx.ip = ip;
     this.clientContexts.set(client, newCtx);
     return newCtx;
   }
