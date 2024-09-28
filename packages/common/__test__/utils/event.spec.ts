@@ -4,7 +4,6 @@ import {
   EventType,
   EventUtils,
   TagName,
-  countPowDifficulty,
   getTimestampInSeconds,
   schnorrSign,
   sha256,
@@ -44,54 +43,6 @@ describe('EventUtils', () => {
       .spyOn(EventUtils, 'extractExpirationTimestamp')
       .mockReturnValueOnce(getTimestampInSeconds() - 1);
     expect(EventUtils.validate(validEvent)).toBe('reject: event is expired');
-
-    expect(
-      EventUtils.validate(
-        createEvent({ created_at: getTimestampInSeconds() + 200 }),
-        { createdAtUpperLimit: 100 },
-      ),
-    ).toBe(
-      'invalid: created_at must not be later than 100 seconds from the current time',
-    );
-    expect(
-      EventUtils.validate(
-        createEvent({ created_at: getTimestampInSeconds() - 200 }),
-        { createdAtLowerLimit: 100 },
-      ),
-    ).toBe(
-      'invalid: created_at must not be earlier than 100 seconds from the current time',
-    );
-
-    const validEventPowDifficulty = countPowDifficulty(validEvent.id);
-    expect(
-      EventUtils.validate(validEvent, {
-        minPowDifficulty: 64,
-      }),
-    ).toBe(`pow: difficulty ${validEventPowDifficulty} is less than 64`);
-
-    expect(
-      EventUtils.validate(createEvent({ minPowDifficulty: 4 }), {
-        minPowDifficulty: 4,
-      }),
-    ).toBeUndefined();
-
-    expect(
-      EventUtils.validate(
-        createEvent({ minPowDifficulty: 8, targetPowDifficulty: 4 }),
-        {
-          minPowDifficulty: 8,
-        },
-      ),
-    ).toBe('pow: difficulty 4 is less than 8');
-
-    expect(
-      EventUtils.validate(
-        createEvent({ minPowDifficulty: 4, targetPowDifficulty: 4 }),
-        {
-          minPowDifficulty: 4,
-        },
-      ),
-    ).toBeUndefined();
 
     jest.spyOn(EventUtils, 'isDelegationEventValid').mockReturnValueOnce(false);
     expect(EventUtils.validate(validEvent)).toBe(
@@ -522,23 +473,10 @@ export function createEvent(
     created_at?: number;
     tags?: string[][];
     content?: string;
-    minPowDifficulty?: number;
     targetPowDifficulty?: number;
   } = {},
 ): Event {
   const tags = params.tags ?? [];
-  let nonce = 0;
-  if (params.minPowDifficulty) {
-    tags.push(
-      params.targetPowDifficulty
-        ? [
-            TagName.NONCE,
-            nonce.toString(),
-            params.targetPowDifficulty.toString(),
-          ]
-        : [TagName.NONCE, nonce.toString()],
-    );
-  }
 
   const baseEvent = {
     pubkey: 'a09659cd9ee89cd3743bc29aa67edf1d7d12fb624699fcd3d6d33eef250b01e7',
@@ -549,13 +487,6 @@ export function createEvent(
   };
 
   let id = getEventHash(baseEvent);
-  if (params.minPowDifficulty) {
-    while (countPowDifficulty(id) < params.minPowDifficulty) {
-      baseEvent.tags.find(tag => tag[0] === TagName.NONCE)![1] =
-        (++nonce).toString();
-      id = getEventHash(baseEvent);
-    }
-  }
   const sig = signEvent(
     id,
     '3689c9acc44041d38a44d0cb777e30f51f295a5e5565b4edb661e8f24eece569',

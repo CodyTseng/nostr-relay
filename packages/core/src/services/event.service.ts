@@ -14,9 +14,6 @@ import { PluginManagerService } from './plugin-manager.service';
 import { SubscriptionService } from './subscription.service';
 
 type EventServiceOptions = {
-  createdAtUpperLimit?: number;
-  createdAtLowerLimit?: number;
-  minPowDifficulty?: number;
   filterResultCacheTtl?: number;
 };
 
@@ -28,9 +25,6 @@ export class EventService {
   private readonly findLazyCache?:
     | LazyCache<string, Observable<Event> | Event[]>
     | undefined;
-  private readonly createdAtUpperLimit: number | undefined;
-  private readonly createdAtLowerLimit: number | undefined;
-  private readonly minPowDifficulty: number | undefined;
 
   constructor(
     eventRepository: EventRepository,
@@ -43,9 +37,6 @@ export class EventService {
     this.subscriptionService = subscriptionService;
     this.pluginManagerService = pluginManagerService;
     this.logger = logger;
-    this.createdAtUpperLimit = options.createdAtUpperLimit;
-    this.createdAtLowerLimit = options.createdAtLowerLimit;
-    this.minPowDifficulty = options.minPowDifficulty;
 
     const filterResultCacheTtl = options.filterResultCacheTtl ?? 1000;
     if (filterResultCacheTtl > 0) {
@@ -84,11 +75,7 @@ export class EventService {
       };
     }
 
-    const validateErrorMsg = EventUtils.validate(event, {
-      createdAtUpperLimit: this.createdAtUpperLimit,
-      createdAtLowerLimit: this.createdAtLowerLimit,
-      minPowDifficulty: this.minPowDifficulty,
-    });
+    const validateErrorMsg = EventUtils.validate(event);
     if (validateErrorMsg) {
       return {
         success: false,

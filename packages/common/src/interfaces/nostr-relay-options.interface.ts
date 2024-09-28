@@ -25,12 +25,6 @@ export type NostrRelayOptions = {
    * The minimum log level to log. `Default: LogLevel.INFO`
    */
   logLevel?: LogLevel;
-  createdAtUpperLimit?: number;
-  createdAtLowerLimit?: number;
-  /**
-   * Allowed minimum PoW difficulty for events.` Default: 0`
-   */
-  minPowDifficulty?: number;
   /**
    * Maximum number of subscriptions per client. `Default: 20`
    */

@@ -75,9 +75,6 @@ export class NostrRelay {
       this.pluginManagerService,
       logger,
       {
-        createdAtUpperLimit: options.createdAtUpperLimit,
-        createdAtLowerLimit: options.createdAtLowerLimit,
-        minPowDifficulty: options.minPowDifficulty,
         filterResultCacheTtl: options.filterResultCacheTtl,
       },
     );

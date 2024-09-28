@@ -1,8 +1,6 @@
 import { EventKind, EventType, TagName } from '../constants';
 import { Event, Filter, Tag } from '../interfaces';
 import { schnorrVerify, sha256 } from './crypto.util';
-import { countPowDifficulty } from './proof-of-work.util';
-import { isNil } from './shared.util';
 import { getTimestampInSeconds } from './time.util';
 
 export class EventUtils {
@@ -33,14 +31,7 @@ export class EventUtils {
     return EventType.REGULAR;
   }
 
-  static validate(
-    event: Event,
-    options: {
-      createdAtUpperLimit?: number;
-      createdAtLowerLimit?: number;
-      minPowDifficulty?: number;
-    } = {},
-  ): string | undefined {
+  static validate(event: Event): string | undefined {
     if (!EventUtils.isIdValid(event)) {
       return 'invalid: id is wrong';
     }
@@ -54,40 +45,6 @@ export class EventUtils {
     const expiredAt = EventUtils.extractExpirationTimestamp(event);
     if (expiredAt && expiredAt < now) {
       return 'reject: event is expired';
-    }
-
-    if (
-      !isNil(options.createdAtUpperLimit) &&
-      event.created_at - now > options.createdAtUpperLimit
-    ) {
-      return `invalid: created_at must not be later than ${options.createdAtUpperLimit} seconds from the current time`;
-    }
-
-    if (
-      !isNil(options.createdAtLowerLimit) &&
-      now - event.created_at > options.createdAtLowerLimit
-    ) {
-      return `invalid: created_at must not be earlier than ${options.createdAtLowerLimit} seconds from the current time`;
-    }
-
-    if (options.minPowDifficulty && options.minPowDifficulty > 0) {
-      const pow = countPowDifficulty(event.id);
-      if (pow < options.minPowDifficulty) {
-        return `pow: difficulty ${pow} is less than ${options.minPowDifficulty}`;
-      }
-
-      const nonceTag = event.tags.find(
-        tag => tag[0] === TagName.NONCE && tag.length === 3,
-      );
-      if (!nonceTag) {
-        // could not reject an event without a committed target difficulty
-        return;
-      }
-
-      const targetPow = parseInt(nonceTag[2]);
-      if (isNaN(targetPow) || targetPow < options.minPowDifficulty) {
-        return `pow: difficulty ${targetPow} is less than ${options.minPowDifficulty}`;
-      }
     }
 
     if (!EventUtils.isDelegationEventValid(event)) {
