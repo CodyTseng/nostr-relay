@@ -208,6 +208,7 @@ export class EventRepositorySqlite extends EventRepository {
           'e.sig',
           'e.created_at',
         ])
+        .limit(limit)
         .execute();
       return rows.map(this.toEvent);
     }

@@ -307,10 +307,16 @@ describe('EventRepositorySqlite', () => {
 
     describe('filter by generic tags', () => {
       it('should filter by tags', async () => {
-        const result = await eventRepository.find({
+        const result1 = await eventRepository.find({
           '#t': ['test'],
         });
-        expect(result).toEqual([LONG_FORM_CONTENT_EVENT, TEXT_NOTE_EVENT]);
+        expect(result1).toEqual([LONG_FORM_CONTENT_EVENT, TEXT_NOTE_EVENT]);
+
+        const result2 = await eventRepository.find({
+          '#t': ['test'],
+          limit: 1,
+        });
+        expect(result2).toEqual([LONG_FORM_CONTENT_EVENT]);
       });
 
       it('should filter by multiple tags', async () => {
