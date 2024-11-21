@@ -9,6 +9,7 @@ describe('EventRepositorySqlite', () => {
 
   beforeEach(async () => {
     eventRepository = new EventRepositorySqlite();
+    await eventRepository.init();
     database = eventRepository.getDatabase();
   });
 
@@ -20,6 +21,7 @@ describe('EventRepositorySqlite', () => {
     it('should support create by better-sqlite3.Database', async () => {
       const db = new BetterSqlite3(':memory:');
       const newEventRepository = new EventRepositorySqlite(db);
+      await newEventRepository.init();
       expect(newEventRepository.getDatabase()).toBe(db);
       expect(newEventRepository.getDefaultLimit()).toBe(100);
       await newEventRepository.destroy();
@@ -29,14 +31,15 @@ describe('EventRepositorySqlite', () => {
       const newEventRepository = new EventRepositorySqlite(':memory:', {
         defaultLimit: 10,
       });
+      await newEventRepository.init();
       expect(newEventRepository.getDefaultLimit()).toBe(10);
       await newEventRepository.destroy();
     });
   });
 
   describe('isSearchSupported', () => {
-    it('should return false', () => {
-      expect(eventRepository.isSearchSupported()).toBe(false);
+    it('should return true', () => {
+      expect(eventRepository.isSearchSupported()).toBe(true);
     });
   });
 
@@ -392,13 +395,6 @@ describe('EventRepositorySqlite', () => {
       expect(eventRepository.getDefaultLimit()).toBe(100);
       eventRepository.setDefaultLimit(10);
       expect(eventRepository.getDefaultLimit()).toBe(10);
-    });
-  });
-
-  describe('migrate', () => {
-    it('should not run migration if already migrated', async () => {
-      const result = (eventRepository as any).migrate();
-      expect(result.executedMigrations).toHaveLength(0);
     });
   });
 });

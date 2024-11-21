@@ -26,6 +26,7 @@ async function bootstrap() {
 
   // You can implement your own event repository. It just needs to implement a few methods.
   const eventRepository = new EventRepositorySqlite();
+  await eventRepository.init();
   const relay = new NostrRelay(eventRepository);
   const validator = new Validator();
 

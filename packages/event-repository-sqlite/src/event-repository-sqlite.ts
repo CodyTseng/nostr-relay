@@ -6,14 +6,16 @@ import {
   Filter,
 } from '@nostr-relay/common';
 import * as BetterSqlite3 from 'better-sqlite3';
-import { readFileSync, readdirSync } from 'fs';
 import {
   JSONColumnType,
   Kysely,
+  Migrator,
   SelectQueryBuilder,
+  sql,
   SqliteDialect,
 } from 'kysely';
-import * as path from 'path';
+import { CustomMigrationProvider } from './migrations';
+import { extractSearchableContent } from './search';
 
 const DEFAULT_LIMIT = 100;
 const MAX_LIMIT_MULTIPLIER = 10;
@@ -24,6 +26,7 @@ export type EventRepositorySqliteOptions = {
 
 export interface Database {
   events: EventTable;
+  events_fts: EventFtsTable;
   generic_tags: GenericTagTable;
 }
 
@@ -37,6 +40,11 @@ interface EventTable {
   content: string;
   sig: string;
   d_tag_value: string | null;
+}
+
+interface EventFtsTable {
+  id: string;
+  content: string;
 }
 
 interface GenericTagTable {
@@ -80,10 +88,13 @@ export class EventRepositorySqlite extends EventRepository {
     this.db = new Kysely<Database>({
       dialect: new SqliteDialect({ database: this.betterSqlite3 }),
     });
-    this.migrate();
 
     this.defaultLimit = options?.defaultLimit ?? DEFAULT_LIMIT;
     this.maxLimit = this.defaultLimit * MAX_LIMIT_MULTIPLIER;
+  }
+
+  async init(): Promise<void> {
+    await this.migrate();
   }
 
   getDatabase(): BetterSqlite3.Database {
@@ -95,7 +106,7 @@ export class EventRepositorySqlite extends EventRepository {
   }
 
   isSearchSupported(): boolean {
-    return false;
+    return true;
   }
 
   async upsert(event: Event): Promise<EventRepositoryUpsertResult> {
@@ -106,6 +117,17 @@ export class EventRepositorySqlite extends EventRepository {
       const { numInsertedOrUpdatedRows } = await this.db
         .transaction()
         .execute(async trx => {
+          let oldEventId: string | undefined;
+          if (dTagValue !== null) {
+            const row = await trx
+              .selectFrom('events')
+              .select(['id'])
+              .where('author', '=', author)
+              .where('kind', '=', event.kind)
+              .where('d_tag_value', '=', dTagValue)
+              .executeTakeFirst();
+            oldEventId = row ? row.id : undefined;
+          }
           const eventInsertResult = await trx
             .insertInto('events')
             .values({
@@ -171,6 +193,24 @@ export class EventRepositorySqlite extends EventRepository {
               .executeTakeFirst();
           }
 
+          if (oldEventId) {
+            await trx
+              .deleteFrom('events_fts')
+              .where('id', '=', oldEventId)
+              .execute();
+          }
+
+          const searchableContent = extractSearchableContent(event);
+          if (searchableContent) {
+            await trx
+              .insertInto('events_fts')
+              .values({
+                id: event.id,
+                content: searchableContent,
+              })
+              .execute();
+          }
+
           return eventInsertResult;
         });
 
@@ -181,6 +221,21 @@ export class EventRepositorySqlite extends EventRepository {
       }
       throw error;
     }
+  }
+
+  async insertToSearch(event: Event): Promise<number> {
+    const searchableContent = extractSearchableContent(event);
+    if (searchableContent) {
+      await this.db
+        .insertInto('events_fts')
+        .values({
+          id: event.id,
+          content: searchableContent,
+        })
+        .execute();
+      return 1;
+    }
+    return 0;
   }
 
   async find(filter: Filter): Promise<Event[]> {
@@ -239,6 +294,15 @@ export class EventRepositorySqlite extends EventRepository {
 
   private createSelectQuery(filter: Filter): eventSelectQueryBuilder {
     let query = this.db.selectFrom('events as e');
+
+    const searchStr = filter.search?.trim();
+    if (searchStr) {
+      query = query.innerJoin('events_fts as fts', join =>
+        join
+          .onRef('fts.id', '=', 'e.id')
+          .on('fts.content', sql`match`, searchStr),
+      );
+    }
 
     const genericTagsCollection = this.extractGenericTagsCollectionFrom(filter);
     if (genericTagsCollection.length) {
@@ -360,59 +424,56 @@ export class EventRepositorySqlite extends EventRepository {
       : Math.min(filter.limit, this.maxLimit);
   }
 
-  private migrate(): {
-    lastMigration: string | undefined;
-    executedMigrations: string[];
-  } {
-    this.betterSqlite3.exec(`
-      CREATE TABLE IF NOT EXISTS nostr_relay_migrations (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        name TEXT NOT NULL,
-        created_at INTEGER NOT NULL
-      )
-    `);
+  private async migrate(): Promise<void> {
+    this.migrateOldMigrationTable();
 
-    const lastMigration = this.betterSqlite3
-      .prepare(`SELECT * FROM nostr_relay_migrations ORDER BY id DESC LIMIT 1`)
+    const migrator = new Migrator({
+      db: this.db,
+      provider: new CustomMigrationProvider(),
+      migrationTableName: 'nostr_relay_sqlite_migrations',
+    });
+
+    const { error } = await migrator.migrateToLatest();
+
+    if (error) {
+      throw error;
+    }
+  }
+
+  private migrateOldMigrationTable(): void {
+    const oldMigrationsTable = this.betterSqlite3
+      .prepare(
+        `SELECT name FROM sqlite_master WHERE type='table' AND name='nostr_relay_migrations'`,
+      )
       .get() as { name: string } | undefined;
 
-    const migrationFileNames = readdirSync(
-      path.join(__dirname, '../migrations'),
-    ).filter(fileName => fileName.endsWith('.sql'));
+    if (oldMigrationsTable) {
+      this.betterSqlite3.exec(`
+        CREATE TABLE IF NOT EXISTS nostr_relay_sqlite_migrations (
+          name TEXT NOT NULL PRIMARY KEY,
+          timestamp TEXT NOT NULL
+        )
+      `);
 
-    const migrationsToRun = (
-      lastMigration
-        ? migrationFileNames.filter(fileName => fileName > lastMigration.name)
-        : migrationFileNames
-    ).sort();
+      const oldMigrations = this.betterSqlite3
+        .prepare(`SELECT * FROM nostr_relay_migrations`)
+        .all() as { name: string; created_at: number }[];
 
-    if (migrationsToRun.length === 0) {
-      return {
-        lastMigration: lastMigration?.name,
-        executedMigrations: [],
-      };
-    }
-
-    const runMigrations = this.betterSqlite3.transaction(() => {
-      migrationsToRun.forEach(fileName => {
-        const migration = readFileSync(
-          path.join(__dirname, '../migrations', fileName),
-          'utf8',
-        );
-        this.betterSqlite3.exec(migration);
-        this.betterSqlite3
-          .prepare(
-            `INSERT INTO nostr_relay_migrations (name, created_at) VALUES (?, ?)`,
-          )
-          .run(fileName, Date.now());
+      const runMigrations = this.betterSqlite3.transaction(() => {
+        oldMigrations.forEach(migration => {
+          this.betterSqlite3
+            .prepare(
+              `INSERT INTO nostr_relay_sqlite_migrations (name, timestamp) VALUES (?, ?)`,
+            )
+            .run(
+              migration.name.replace('.sql', ''),
+              new Date(migration.created_at).toISOString(),
+            );
+        });
+        this.betterSqlite3.exec(`DROP TABLE nostr_relay_migrations`);
       });
-    });
-    runMigrations();
-
-    return {
-      lastMigration: migrationsToRun[migrationsToRun.length - 1],
-      executedMigrations: migrationsToRun,
-    };
+      runMigrations();
+    }
   }
 
   private toEvent(row: any): Event {
