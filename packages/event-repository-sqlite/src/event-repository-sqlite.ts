@@ -295,11 +295,12 @@ export class EventRepositorySqlite extends EventRepository {
   private createSelectQuery(filter: Filter): eventSelectQueryBuilder {
     let query = this.db.selectFrom('events as e');
 
-    if (filter.search) {
+    const searchStr = filter.search?.trim();
+    if (searchStr) {
       query = query.innerJoin('events_fts as fts', join =>
         join
           .onRef('fts.id', '=', 'e.id')
-          .on('fts.content', sql`match`, filter.search!),
+          .on('fts.content', sql`match`, searchStr),
       );
     }
 
