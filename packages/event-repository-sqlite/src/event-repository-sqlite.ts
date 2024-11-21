@@ -15,6 +15,7 @@ import {
   SqliteDialect,
 } from 'kysely';
 import { CustomMigrationProvider } from './migrations';
+import { extractSearchableContent } from './search';
 
 const DEFAULT_LIMIT = 100;
 const MAX_LIMIT_MULTIPLIER = 10;
@@ -61,39 +62,6 @@ type eventSelectQueryBuilder = SelectQueryBuilder<
   'e',
   {}
 >;
-
-const SEARCHABLE_TAGS = ['title', 'description', 'about', 'summary', 'alt'];
-const SEARCHABLE_KIND_WHITELIST = [0, 1, 1111, 9802, 30023, 30024];
-const SEARCHABLE_CONTENT_FORMATTERS: Record<
-  number,
-  (content: string) => string
-> = {
-  [0]: content => {
-    const SEARCHABLE_PROFILE_FIELDS = [
-      'name',
-      'display_name',
-      'about',
-      'nip05',
-      'lud16',
-      'website',
-      // Deprecated fields
-      'displayName',
-      'username',
-    ];
-    try {
-      const lines: string[] = [];
-      const json = JSON.parse(content);
-
-      for (const field of SEARCHABLE_PROFILE_FIELDS) {
-        if (json[field]) lines.push(json[field]);
-      }
-
-      return lines.join('\n');
-    } catch {
-      return content;
-    }
-  },
-};
 
 export class EventRepositorySqlite extends EventRepository {
   private db: Kysely<Database>;
@@ -232,7 +200,7 @@ export class EventRepositorySqlite extends EventRepository {
               .execute();
           }
 
-          const searchableContent = this.extractSearchableContent(event);
+          const searchableContent = extractSearchableContent(event);
           if (searchableContent) {
             await trx
               .insertInto('events_fts')
@@ -253,6 +221,21 @@ export class EventRepositorySqlite extends EventRepository {
       }
       throw error;
     }
+  }
+
+  async insertToSearch(event: Event): Promise<number> {
+    const searchableContent = extractSearchableContent(event);
+    if (searchableContent) {
+      await this.db
+        .insertInto('events_fts')
+        .values({
+          id: event.id,
+          content: searchableContent,
+        })
+        .execute();
+      return 1;
+    }
+    return 0;
   }
 
   async find(filter: Filter): Promise<Event[]> {
@@ -502,23 +485,5 @@ export class EventRepositorySqlite extends EventRepository {
       content: row.content,
       sig: row.sig,
     };
-  }
-
-  private extractSearchableContent(event: Event): string {
-    if (!SEARCHABLE_KIND_WHITELIST.includes(event.kind)) return '';
-
-    const formattedContent = (
-      SEARCHABLE_CONTENT_FORMATTERS[event.kind]
-        ? SEARCHABLE_CONTENT_FORMATTERS[event.kind](event.content)
-        : event.content
-    ).trim();
-
-    const formattedTags = event.tags
-      .filter(([tagName]) => SEARCHABLE_TAGS.includes(tagName))
-      .map(([, tagValue]) => tagValue.trim())
-      .filter(Boolean)
-      .join(' ');
-
-    return `${formattedContent} ${formattedTags}`.trim();
   }
 }
