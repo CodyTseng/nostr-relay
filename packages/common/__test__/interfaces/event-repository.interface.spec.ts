@@ -63,6 +63,12 @@ describe('EventRepository', () => {
       expect(eventRepository.find).toHaveBeenCalledWith(filter);
     });
   });
+
+  describe('deleteByDeletionRequest', () => {
+    it('should do nothing', async () => {
+      await eventRepository.deleteByDeletionRequest({} as any);
+    });
+  });
 });
 
 class TestEventRepository extends EventRepository {

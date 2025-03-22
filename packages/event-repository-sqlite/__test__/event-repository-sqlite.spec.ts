@@ -390,6 +390,125 @@ describe('EventRepositorySqlite', () => {
     });
   });
 
+  describe('deleteByDeletionRequest', () => {
+    const now = getTimestampInSeconds();
+    const events = [
+      createEvent({
+        kind: EventKind.LONG_FORM_CONTENT,
+        content: 'hello nostr',
+        tags: [
+          ['d', 'test'],
+          ['t', 'test'],
+          ['e', 'test'],
+        ],
+        created_at: now + 1000,
+      }),
+      createEvent({
+        kind: EventKind.TEXT_NOTE,
+        content: 'hello world',
+        tags: [
+          ['t', 'test'],
+          ['f', 'test'],
+        ],
+        created_at: now,
+      }),
+      createEvent({
+        kind: EventKind.SET_METADATA,
+        content: JSON.stringify({ name: 'cody' }),
+        created_at: now - 1000,
+      }),
+    ];
+    const [LONG_FORM_CONTENT_EVENT, TEXT_NOTE_EVENT, SET_METADATA_EVENT] =
+      events;
+
+    beforeEach(async () => {
+      await Promise.all(events.map(event => eventRepository.upsert(event)));
+    });
+
+    it('should delete text note', async () => {
+      const deletionRequestEvent = createEvent({
+        kind: EventKind.DELETION,
+        tags: [['e', TEXT_NOTE_EVENT.id]],
+      });
+      await eventRepository.deleteByDeletionRequest(deletionRequestEvent);
+
+      const result = await eventRepository.find({});
+      expect(result.length).toBe(2);
+      expect(result.find(e => e.id === TEXT_NOTE_EVENT.id)).toBeUndefined();
+    });
+
+    it('should delete long form content', async () => {
+      const deletionRequestEvent = createEvent({
+        kind: EventKind.DELETION,
+        tags: [
+          [
+            'a',
+            `${LONG_FORM_CONTENT_EVENT.kind}:${LONG_FORM_CONTENT_EVENT.pubkey}:test`,
+          ],
+        ],
+      });
+      await eventRepository.deleteByDeletionRequest(deletionRequestEvent);
+
+      const result = await eventRepository.find({});
+      expect(result.length).toBe(2);
+      expect(
+        result.find(e => e.id === LONG_FORM_CONTENT_EVENT.id),
+      ).toBeUndefined();
+    });
+
+    it('should delete metadata', async () => {
+      const deletionRequestEvent = createEvent({
+        kind: EventKind.DELETION,
+        tags: [
+          ['a', `${SET_METADATA_EVENT.kind}:${SET_METADATA_EVENT.pubkey}:`],
+        ],
+      });
+      await eventRepository.deleteByDeletionRequest(deletionRequestEvent);
+
+      const result = await eventRepository.find({});
+      expect(result.length).toBe(2);
+      expect(result.find(e => e.id === SET_METADATA_EVENT.id)).toBeUndefined();
+    });
+
+    it('should delete', async () => {
+      const deletionRequestEvent = createEvent({
+        kind: EventKind.DELETION,
+        tags: [
+          ['e', TEXT_NOTE_EVENT.id],
+          [
+            'a',
+            `${LONG_FORM_CONTENT_EVENT.kind}:${LONG_FORM_CONTENT_EVENT.pubkey}:test`,
+          ],
+          ['a', `${SET_METADATA_EVENT.kind}:${SET_METADATA_EVENT.pubkey}:`],
+        ],
+      });
+      await eventRepository.deleteByDeletionRequest(deletionRequestEvent);
+
+      const result = await eventRepository.find({});
+      expect(result.length).toBe(0);
+    });
+
+    it('should not delete events of others', async () => {
+      const deletionRequestEvent = createEvent({
+        kind: EventKind.DELETION,
+        tags: [
+          ['e', TEXT_NOTE_EVENT.id],
+          [
+            'a',
+            `${LONG_FORM_CONTENT_EVENT.kind}:${LONG_FORM_CONTENT_EVENT.pubkey}:test`,
+          ],
+          ['a', `${SET_METADATA_EVENT.kind}:${SET_METADATA_EVENT.pubkey}:`],
+        ],
+        privateKey:
+          '24eac0be69c86ae450903881f1e5dd1576a452bdaf1c3150a66bd6d15275318e',
+      });
+      await eventRepository.deleteByDeletionRequest(deletionRequestEvent);
+
+      const result = await eventRepository.find({});
+      expect(result.length).toBe(3);
+    });
+  });
+
   describe('setDefaultLimit', () => {
     it('should set default limit', async () => {
       expect(eventRepository.getDefaultLimit()).toBe(100);

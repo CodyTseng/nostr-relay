@@ -84,7 +84,7 @@ export class EventService {
     }
 
     try {
-      const eventType = EventUtils.getType(event);
+      const eventType = EventUtils.getType(event.kind);
       if (eventType === EventType.EPHEMERAL) {
         return await this.handleEphemeralEvent(event);
       }
@@ -151,7 +151,16 @@ export class EventService {
     return { success: true };
   }
 
+  private async handleDeletionEvent(event: Event): Promise<HandleEventResult> {
+    await this.eventRepository.deleteByDeletionRequest(event);
+    return { success: true };
+  }
+
   private async handleRegularEvent(event: Event): Promise<HandleEventResult> {
+    if (event.kind === EventKind.DELETION) {
+      return await this.handleDeletionEvent(event);
+    }
+
     const { isDuplicate } = await this.eventRepository.upsert(event);
 
     if (!isDuplicate) {
@@ -164,7 +173,7 @@ export class EventService {
   }
 
   private async checkEventExists(event: Event): Promise<boolean> {
-    if (EventType.EPHEMERAL === EventUtils.getType(event)) return false;
+    if (EventType.EPHEMERAL === EventUtils.getType(event.kind)) return false;
 
     const exists = await this.eventRepository.findOne({ ids: [event.id] });
     return !!exists;

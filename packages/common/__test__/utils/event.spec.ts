@@ -1,31 +1,31 @@
+import { bytesToHex } from '@noble/curves/abstract/utils';
+import { schnorr } from '@noble/curves/secp256k1';
 import {
   Event,
   EventKind,
   EventType,
   EventUtils,
-  TagName,
   getTimestampInSeconds,
   schnorrSign,
   sha256,
+  TagName,
 } from '../../src';
 
 describe('EventUtils', () => {
   it('getType', () => {
-    expect(EventUtils.getType({ kind: EventKind.TEXT_NOTE } as Event)).toBe(
-      EventType.REGULAR,
-    );
+    expect(EventUtils.getType(EventKind.TEXT_NOTE)).toBe(EventType.REGULAR);
 
-    expect(EventUtils.getType({ kind: EventKind.SET_METADATA } as Event)).toBe(
+    expect(EventUtils.getType(EventKind.SET_METADATA)).toBe(
       EventType.REPLACEABLE,
     );
 
-    expect(
-      EventUtils.getType({ kind: EventKind.EPHEMERAL_FIRST } as Event),
-    ).toBe(EventType.EPHEMERAL);
+    expect(EventUtils.getType(EventKind.EPHEMERAL_FIRST)).toBe(
+      EventType.EPHEMERAL,
+    );
 
-    expect(
-      EventUtils.getType({ kind: EventKind.LONG_FORM_CONTENT } as Event),
-    ).toBe(EventType.PARAMETERIZED_REPLACEABLE);
+    expect(EventUtils.getType(EventKind.LONG_FORM_CONTENT)).toBe(
+      EventType.PARAMETERIZED_REPLACEABLE,
+    );
   });
 
   it('validate', () => {
@@ -474,23 +474,25 @@ export function createEvent(
     tags?: string[][];
     content?: string;
     targetPowDifficulty?: number;
+    privateKey?: string;
   } = {},
 ): Event {
   const tags = params.tags ?? [];
+  const privateKey =
+    params.privateKey ??
+    '3689c9acc44041d38a44d0cb777e30f51f295a5e5565b4edb661e8f24eece569';
+  const pubkey = bytesToHex(schnorr.getPublicKey(privateKey));
 
   const baseEvent = {
-    pubkey: 'a09659cd9ee89cd3743bc29aa67edf1d7d12fb624699fcd3d6d33eef250b01e7',
+    pubkey,
     kind: params.kind ?? 1,
     created_at: params.created_at ?? getTimestampInSeconds(),
     tags,
     content: params.content ?? '',
   };
 
-  let id = getEventHash(baseEvent);
-  const sig = signEvent(
-    id,
-    '3689c9acc44041d38a44d0cb777e30f51f295a5e5565b4edb661e8f24eece569',
-  );
+  const id = getEventHash(baseEvent);
+  const sig = signEvent(id, privateKey);
 
   return {
     ...baseEvent,
@@ -501,7 +503,7 @@ export function createEvent(
 
 function getEventHash(
   event: Pick<Event, 'pubkey' | 'kind' | 'tags' | 'content' | 'created_at'>,
-) {
+): string {
   return sha256([
     0,
     event.pubkey,
@@ -512,6 +514,6 @@ function getEventHash(
   ]);
 }
 
-function signEvent(eventId: string, key: string) {
+function signEvent(eventId: string, key: string): string {
   return schnorrSign(eventId, key);
 }

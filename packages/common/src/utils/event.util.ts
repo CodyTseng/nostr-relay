@@ -4,7 +4,7 @@ import { schnorrVerify, sha256 } from './crypto.util';
 import { getTimestampInSeconds } from './time.util';
 
 export class EventUtils {
-  static getType({ kind }: Event): EventType {
+  static getType(kind: number): EventType {
     if (
       [
         EventKind.SET_METADATA,
@@ -169,7 +169,7 @@ export class EventUtils {
   }
 
   static extractDTagValue(event: Event): string | null {
-    const type = EventUtils.getType(event);
+    const type = EventUtils.getType(event.kind);
     if (type === EventType.REPLACEABLE) return '';
     if (type !== EventType.PARAMETERIZED_REPLACEABLE) return null;
 

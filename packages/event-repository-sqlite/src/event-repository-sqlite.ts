@@ -2,16 +2,20 @@ import {
   Event,
   EventRepository,
   EventRepositoryUpsertResult,
+  EventType,
   EventUtils,
   Filter,
+  TagName,
 } from '@nostr-relay/common';
 import * as BetterSqlite3 from 'better-sqlite3';
 import {
   JSONColumnType,
   Kysely,
   Migrator,
+  OperandExpression,
   SelectQueryBuilder,
   sql,
+  SqlBool,
   SqliteDialect,
 } from 'kysely';
 import { CustomMigrationProvider } from './migrations';
@@ -281,6 +285,66 @@ export class EventRepositorySqlite extends EventRepository {
       .limit(limit)
       .execute();
     return rows.map(this.toEvent);
+  }
+
+  async deleteByDeletionRequest(event: Event): Promise<void> {
+    const author = EventUtils.getAuthor(event);
+    const idSet = new Set<string>();
+    const pointerMap = new Map<string, { kind: number; d: string }>();
+
+    event.tags.forEach(([tagName, tagValue]) => {
+      if (tagName === TagName.EVENT && /^[a-fA-F0-9]{64}$/.test(tagValue)) {
+        idSet.add(tagValue);
+      } else if (tagName === TagName.EVENT_COORDINATES) {
+        const [kindStr, pubkey, d] = tagValue.split(':');
+        const kind = parseInt(kindStr, 10);
+        if (
+          isNaN(kind) ||
+          !/^[a-fA-F0-9]{64}$/.test(pubkey) ||
+          pubkey !== author ||
+          d === undefined
+        ) {
+          return;
+        }
+
+        const eventType = EventUtils.getType(kind);
+        if (
+          eventType !== EventType.REPLACEABLE &&
+          eventType !== EventType.PARAMETERIZED_REPLACEABLE
+        ) {
+          return;
+        }
+
+        pointerMap.set(tagValue, { kind, d });
+      }
+    });
+
+    await this.db.transaction().execute(async trx => {
+      const rows = await trx
+        .selectFrom('events')
+        .select(['id'])
+        .where('author', '=', author)
+        .where(eb => {
+          const orEbs: OperandExpression<SqlBool>[] = Array.from(
+            pointerMap.values(),
+          ).map(({ kind, d }) => {
+            return eb.and([eb('kind', '=', kind), eb('d_tag_value', '=', d)]);
+          });
+
+          if (idSet.size > 0) {
+            orEbs.push(eb('id', 'in', Array.from(idSet)));
+          }
+
+          return eb.or(orEbs);
+        })
+        .execute();
+
+      const ids = rows.map(row => row.id);
+      if (!ids.length) return;
+
+      await trx.deleteFrom('events').where('id', 'in', ids).execute();
+      await trx.deleteFrom('events_fts').where('id', 'in', ids).execute();
+    });
   }
 
   getDefaultLimit(): number {

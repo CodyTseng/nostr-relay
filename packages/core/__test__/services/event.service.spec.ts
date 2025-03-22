@@ -32,6 +32,7 @@ describe('eventService', () => {
       upsert: jest.fn(),
       find: jest.fn(),
       findOne: jest.fn(),
+      deleteByDeletionRequest: jest.fn(),
       destroy: jest.fn(),
       find$: jest.fn(),
     };
@@ -217,6 +218,18 @@ describe('eventService', () => {
         message: 'duplicate: the event already exists',
       });
       expect(subscriptionService.broadcast).not.toHaveBeenCalled();
+    });
+
+    it('should handle deletion request event successfully', async () => {
+      const event = { id: 'a', kind: EventKind.DELETION } as Event;
+
+      jest
+        .spyOn(eventRepository, 'deleteByDeletionRequest')
+        .mockResolvedValue();
+
+      expect(await eventService.handleEvent(event)).toEqual({
+        success: true,
+      });
     });
 
     it('should catch normal Error', async () => {

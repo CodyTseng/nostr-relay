@@ -50,6 +50,16 @@ export abstract class EventRepository {
   abstract destroy(): Promise<void>;
 
   /**
+   * This method is called when a client requests to delete events.
+   *
+   * @param event Deletion request event
+   */
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  async deleteByDeletionRequest(event: Event): Promise<void> {
+    return;
+  }
+
+  /**
    * This method doesn't need to be implemented. It's just a helper method for
    * finding one event. And it will call `find` method internally.
    *
