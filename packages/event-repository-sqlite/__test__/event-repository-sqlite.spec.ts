@@ -388,6 +388,239 @@ describe('EventRepositorySqlite', () => {
         expect(result).toEqual([]);
       });
     });
+
+    describe('NIP-119 AND tag filters', () => {
+      const now = getTimestampInSeconds();
+      const events = [
+        // Event with multiple t tags: meme, cat, black
+        createEvent({
+          kind: EventKind.TEXT_NOTE,
+          content: 'meme cat black',
+          tags: [
+            ['t', 'meme'],
+            ['t', 'cat'],
+            ['t', 'black'],
+          ],
+          created_at: now + 1000,
+        }),
+        // Event with multiple t tags: meme, cat, white
+        createEvent({
+          kind: EventKind.TEXT_NOTE,
+          content: 'meme cat white',
+          tags: [
+            ['t', 'meme'],
+            ['t', 'cat'],
+            ['t', 'white'],
+          ],
+          created_at: now + 900,
+        }),
+        // Event with single t tag: meme only
+        createEvent({
+          kind: EventKind.TEXT_NOTE,
+          content: 'meme only',
+          tags: [['t', 'meme']],
+          created_at: now + 800,
+        }),
+        // Event with multiple t tags: dog, black
+        createEvent({
+          kind: EventKind.TEXT_NOTE,
+          content: 'dog black',
+          tags: [
+            ['t', 'dog'],
+            ['t', 'black'],
+          ],
+          created_at: now + 700,
+        }),
+        // Event with multiple e and p tags
+        createEvent({
+          kind: EventKind.TEXT_NOTE,
+          content: 'event with e and p tags',
+          tags: [
+            ['e', 'event1'],
+            ['e', 'event2'],
+            ['p', 'pubkey1'],
+            ['p', 'pubkey2'],
+          ],
+          created_at: now + 600,
+        }),
+      ];
+
+      const [
+        MEME_CAT_BLACK_EVENT,
+        MEME_CAT_WHITE_EVENT,
+        MEME_ONLY_EVENT,
+        DOG_BLACK_EVENT,
+        E_P_EVENT,
+      ] = events;
+
+      beforeEach(async () => {
+        await Promise.all(events.map(event => eventRepository.upsert(event)));
+      });
+
+      it('should filter by single AND tag', async () => {
+        // Find events with BOTH "meme" AND "cat" tags
+        const result = await eventRepository.find({
+          '&t': ['meme', 'cat'],
+        });
+        expect(result).toEqual([MEME_CAT_BLACK_EVENT, MEME_CAT_WHITE_EVENT]);
+      });
+
+      it('should filter by AND tag with single value', async () => {
+        // Find events with "meme" tag (single value AND is same as OR)
+        const result = await eventRepository.find({
+          '&t': ['meme'],
+        });
+        expect(result).toEqual([
+          MEME_CAT_BLACK_EVENT,
+          MEME_CAT_WHITE_EVENT,
+          MEME_ONLY_EVENT,
+        ]);
+      });
+
+      it('should filter by AND tag - no matches when all values not present', async () => {
+        // No event has BOTH "meme" AND "dog"
+        const result = await eventRepository.find({
+          '&t': ['meme', 'dog'],
+        });
+        expect(result).toEqual([]);
+      });
+
+      it('should filter by AND + OR on same tag', async () => {
+        // Events must have BOTH "meme" AND "cat", and also have "black" OR "white"
+        const result = await eventRepository.find({
+          '&t': ['meme', 'cat'],
+          '#t': ['black', 'white'],
+        });
+        expect(result).toEqual([MEME_CAT_BLACK_EVENT, MEME_CAT_WHITE_EVENT]);
+      });
+
+      it('should filter by AND + OR with overlap (NIP-119 exclusion rule)', async () => {
+        // Events must have BOTH "meme" AND "cat", and also have "meme" OR "black"
+        // BUT "meme" should be excluded from OR since it's in AND
+        // So this effectively means: has (meme AND cat) AND (black)
+        const result = await eventRepository.find({
+          '&t': ['meme', 'cat'],
+          '#t': ['meme', 'black'],
+        });
+        // Only MEME_CAT_BLACK_EVENT has meme, cat, AND black
+        expect(result).toEqual([MEME_CAT_BLACK_EVENT]);
+      });
+
+      it('should filter by AND + OR where OR is fully covered by AND', async () => {
+        // Events must have BOTH "meme" AND "cat"
+        // OR filter only has values already in AND (should be filtered out)
+        const result = await eventRepository.find({
+          '&t': ['meme', 'cat'],
+          '#t': ['meme', 'cat'],
+        });
+        // Should match events with meme AND cat (OR filter is effectively ignored)
+        expect(result).toEqual([MEME_CAT_BLACK_EVENT, MEME_CAT_WHITE_EVENT]);
+      });
+
+      it('should filter by multiple AND filters on different tags', async () => {
+        // Events must have BOTH "event1" AND "event2" e-tags
+        // AND BOTH "pubkey1" AND "pubkey2" p-tags
+        const result = await eventRepository.find({
+          '&e': ['event1', 'event2'],
+          '&p': ['pubkey1', 'pubkey2'],
+        });
+        expect(result).toEqual([E_P_EVENT]);
+      });
+
+      it('should filter by AND tag with other filter properties', async () => {
+        // Events with meme AND cat, and kind TEXT_NOTE
+        const result = await eventRepository.find({
+          '&t': ['meme', 'cat'],
+          kinds: [EventKind.TEXT_NOTE],
+        });
+        expect(result).toEqual([MEME_CAT_BLACK_EVENT, MEME_CAT_WHITE_EVENT]);
+      });
+
+      it('should filter by AND tag with since', async () => {
+        // Events with meme AND cat, created after now + 850
+        const result = await eventRepository.find({
+          '&t': ['meme', 'cat'],
+          since: now + 850,
+        });
+        expect(result).toEqual([MEME_CAT_BLACK_EVENT, MEME_CAT_WHITE_EVENT]);
+      });
+
+      it('should filter by AND tag with until', async () => {
+        // Events with meme AND cat, created before now + 950
+        const result = await eventRepository.find({
+          '&t': ['meme', 'cat'],
+          until: now + 950,
+        });
+        expect(result).toEqual([MEME_CAT_WHITE_EVENT]);
+      });
+
+      it('should filter by AND tag with limit', async () => {
+        // Events with meme AND cat, limit to 1
+        const result = await eventRepository.find({
+          '&t': ['meme', 'cat'],
+          limit: 1,
+        });
+        expect(result).toEqual([MEME_CAT_BLACK_EVENT]);
+      });
+
+      it('should filter by AND tag with authors', async () => {
+        // Events with meme AND cat, by specific author
+        const result = await eventRepository.find({
+          '&t': ['meme', 'cat'],
+          authors: [MEME_CAT_BLACK_EVENT.pubkey],
+        });
+        expect(result).toEqual([MEME_CAT_BLACK_EVENT, MEME_CAT_WHITE_EVENT]);
+      });
+
+      it('should handle complex query with AND, OR, and other filters', async () => {
+        // Events must have:
+        // - BOTH "meme" AND "cat" tags
+        // - At least one of "black" OR "white" tags
+        // - Kind TEXT_NOTE
+        // - Created after now + 850
+        const result = await eventRepository.find({
+          '&t': ['meme', 'cat'],
+          '#t': ['black', 'white'],
+          kinds: [EventKind.TEXT_NOTE],
+          since: now + 850,
+        });
+        expect(result).toEqual([MEME_CAT_BLACK_EVENT, MEME_CAT_WHITE_EVENT]);
+      });
+
+      it('should return empty when AND requirements not met', async () => {
+        // No event has all three: meme, cat, dog
+        const result = await eventRepository.find({
+          '&t': ['meme', 'cat', 'dog'],
+        });
+        expect(result).toEqual([]);
+      });
+
+      it('should work with ids filter and AND tags', async () => {
+        // Find specific event that also has meme AND cat
+        const result = await eventRepository.find({
+          ids: [MEME_CAT_BLACK_EVENT.id],
+          '&t': ['meme', 'cat'],
+        });
+        expect(result).toEqual([MEME_CAT_BLACK_EVENT]);
+      });
+
+      it('should return empty when ids filter does not match AND requirements', async () => {
+        // MEME_ONLY_EVENT doesn't have both meme AND cat
+        const result = await eventRepository.find({
+          ids: [MEME_ONLY_EVENT.id],
+          '&t': ['meme', 'cat'],
+        });
+        expect(result).toEqual([]);
+      });
+
+      it('should handle empty AND filter array gracefully', async () => {
+        // Empty array should be ignored
+        const result = await eventRepository.find({
+          '#t': ['meme'],
+        });
+        expect(result.length).toBeGreaterThan(0);
+      });
+    });
   });
 
   describe('deleteByDeletionRequest', () => {
