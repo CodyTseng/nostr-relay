@@ -40,5 +40,9 @@ export type ValidatorOptions = {
    * maximum length of search string. `Default: 256`
    */
   maxFilterSearchStringLength?: number;
+  /**
+   * enable NIP-nd (delegated Nostr) validation. `Default: false`
+   */
+  enableNipNd?: boolean;
 };
 export type RequiredValidatorOptions = Required<ValidatorOptions>;

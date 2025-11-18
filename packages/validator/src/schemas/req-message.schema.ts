@@ -41,11 +41,16 @@ export function createFilterSchema(
     | 'maxFilterGenericTagsLength'
     | 'maxTagValueLength'
     | 'maxFilterSearchStringLength'
+    | 'enableNipNd'
   >,
 ): z.ZodType<Filter> {
-  const { maxFilterIdsLength, maxFilterAuthorsLength, maxFilterKindsLength } =
-    options;
-  return z
+  const {
+    maxFilterIdsLength,
+    maxFilterAuthorsLength,
+    maxFilterKindsLength,
+    enableNipNd,
+  } = options;
+  const schema = z
     .object({
       ids: z.array(EventIdSchema).max(maxFilterIdsLength, {
         message: `must be less than or equal to ${maxFilterIdsLength} ids`,
@@ -116,6 +121,15 @@ export function createFilterSchema(
       ['#X']: createGenericTagFilterValuesSchema(options),
       ['#Y']: createGenericTagFilterValuesSchema(options),
       ['#Z']: createGenericTagFilterValuesSchema(options),
+    })
+    .partial();
+
+  if (!enableNipNd) {
+    return schema;
+  }
+
+  return schema
+    .extend({
       // AND filters (& prefix) - NIP-ND
       ['&a']: createGenericTagFilterValuesSchema(options),
       ['&b']: createGenericTagFilterValuesSchema(options),
@@ -183,6 +197,7 @@ export function createReqMessageSchema(
     | 'maxFilterGenericTagsLength'
     | 'maxTagValueLength'
     | 'maxFilterSearchStringLength'
+    | 'enableNipNd'
   >,
 ): z.ZodType<IncomingReqMessage> {
   return z

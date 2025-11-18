@@ -138,6 +138,7 @@ export class Validator {
       maxFilterKindsLength: 20,
       maxFilterGenericTagsLength: 256,
       maxFilterSearchStringLength: 256,
+      enableNipNd: false,
       ...options,
     };
   }
