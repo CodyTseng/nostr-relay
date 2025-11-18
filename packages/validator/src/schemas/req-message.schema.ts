@@ -116,7 +116,7 @@ export function createFilterSchema(
       ['#X']: createGenericTagFilterValuesSchema(options),
       ['#Y']: createGenericTagFilterValuesSchema(options),
       ['#Z']: createGenericTagFilterValuesSchema(options),
-      // AND filters (& prefix) - NIP-119
+      // AND filters (& prefix) - NIP-ND
       ['&a']: createGenericTagFilterValuesSchema(options),
       ['&b']: createGenericTagFilterValuesSchema(options),
       ['&c']: createGenericTagFilterValuesSchema(options),

@@ -389,7 +389,7 @@ describe('EventRepositorySqlite', () => {
       });
     });
 
-    describe('NIP-119 AND tag filters', () => {
+    describe('NIP-ND AND tag filters', () => {
       const now = getTimestampInSeconds();
       const events = [
         // Event with multiple t tags: meme, cat, black
@@ -494,7 +494,7 @@ describe('EventRepositorySqlite', () => {
         expect(result).toEqual([MEME_CAT_BLACK_EVENT, MEME_CAT_WHITE_EVENT]);
       });
 
-      it('should filter by AND + OR with overlap (NIP-119 exclusion rule)', async () => {
+      it('should filter by AND + OR with overlap (NIP-ND exclusion rule)', async () => {
         // Events must have BOTH "meme" AND "cat", and also have "meme" OR "black"
         // BUT "meme" should be excluded from OR since it's in AND
         // So this effectively means: has (meme AND cat) AND (black)
