@@ -372,18 +372,7 @@ export class EventRepositorySqlite extends EventRepository {
     // AND takes precedence and requires ALL values to be present
     const andTagsCollection = this.extractAndTagsCollectionFrom(filter);
     for (const { tagName, values } of andTagsCollection) {
-      // Convert values to generic tag format
-      const genericTagValues = values.map(v => this.toGenericTag(tagName, v));
-
-      // Use a subquery with GROUP BY + HAVING COUNT for AND logic
-      // This ensures ALL specified values exist for the event
-      const andSubQuery = this.db
-        .selectFrom('generic_tags')
-        .select('event_id')
-        .where('tag', 'in', genericTagValues)
-        .groupBy('event_id')
-        .having(sql`COUNT(DISTINCT tag)`, '=', values.length);
-
+      const andSubQuery = this.createAndTagSubQuery(tagName, values);
       query = query.where('e.id', 'in', andSubQuery);
     }
 
@@ -442,18 +431,8 @@ export class EventRepositorySqlite extends EventRepository {
 
     // Handle AND tag filters (& prefix) first - NIP-ND
     const andTagsCollection = this.extractAndTagsCollectionFrom(filter);
-    for (let i = 0; i < andTagsCollection.length; i++) {
-      const { tagName, values } = andTagsCollection[i];
-      const genericTagValues = values.map(v => this.toGenericTag(tagName, v));
-
-      // Use a subquery with GROUP BY + HAVING COUNT for AND logic
-      const andSubQuery = this.db
-        .selectFrom('generic_tags')
-        .select('event_id')
-        .where('tag', 'in', genericTagValues)
-        .groupBy('event_id')
-        .having(sql`COUNT(DISTINCT tag)`, '=', values.length);
-
+    for (const { tagName, values } of andTagsCollection) {
+      const andSubQuery = this.createAndTagSubQuery(tagName, values);
       subQuery = subQuery.where('g.event_id', 'in', andSubQuery);
     }
 
@@ -550,6 +529,23 @@ export class EventRepositorySqlite extends EventRepository {
           values: filter[key] as string[],
         };
       });
+  }
+
+  private createAndTagSubQuery(
+    tagName: string,
+    values: string[],
+  ): SelectQueryBuilder<Database, 'generic_tags', { event_id: string }> {
+    // Convert values to generic tag format
+    const genericTagValues = values.map(v => this.toGenericTag(tagName, v));
+
+    // Use a subquery with GROUP BY + HAVING COUNT for AND logic
+    // This ensures ALL specified values exist for the event
+    return this.db
+      .selectFrom('generic_tags')
+      .select('event_id')
+      .where('tag', 'in', genericTagValues)
+      .groupBy('event_id')
+      .having(sql`COUNT(DISTINCT tag)`, '=', values.length);
   }
 
   private getLimitFrom(filter: Filter): number {
