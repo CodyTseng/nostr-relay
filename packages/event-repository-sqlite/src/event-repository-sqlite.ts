@@ -368,6 +368,15 @@ export class EventRepositorySqlite extends EventRepository {
       );
     }
 
+    // Handle AND tag filters (& prefix) first - NIP-ND
+    // AND takes precedence and requires ALL values to be present
+    const andTagsCollection = this.extractAndTagsCollectionFrom(filter);
+    for (const { tagName, values } of andTagsCollection) {
+      const andSubQuery = this.createAndTagSubQuery(tagName, values);
+      query = query.where('e.id', 'in', andSubQuery);
+    }
+
+    // Handle OR tag filters (# prefix) - with AND exclusion already applied
     const genericTagsCollection = this.extractGenericTagsCollectionFrom(filter);
     if (genericTagsCollection.length) {
       const [firstGenericTagsFilter, secondGenericTagsFilter] =
@@ -419,6 +428,13 @@ export class EventRepositorySqlite extends EventRepository {
       .selectFrom('generic_tags as g')
       .select('g.event_id')
       .distinct();
+
+    // Handle AND tag filters (& prefix) first - NIP-ND
+    const andTagsCollection = this.extractAndTagsCollectionFrom(filter);
+    for (const { tagName, values } of andTagsCollection) {
+      const andSubQuery = this.createAndTagSubQuery(tagName, values);
+      subQuery = subQuery.where('g.event_id', 'in', andSubQuery);
+    }
 
     if (secondGenericTagsFilter?.length) {
       subQuery = subQuery.innerJoin('generic_tags as g2', join =>
@@ -477,9 +493,59 @@ export class EventRepositorySqlite extends EventRepository {
       .filter(key => key.startsWith('#') && filter[key].length > 0)
       .map(key => {
         const tagName = key[1];
-        return filter[key].map((v: string) => this.toGenericTag(tagName, v));
+        const tagValues = filter[key] as string[];
+
+        // Check if there's a corresponding AND filter for this tag (NIP-ND)
+        const andKey = `&${tagName}` as keyof Filter;
+        const andValues = filter[andKey] as string[] | undefined;
+
+        // Filter out values that are in AND tags (NIP-ND rule)
+        const filteredValues =
+          andValues && Array.isArray(andValues)
+            ? tagValues.filter(v => !(andValues as string[]).includes(v))
+            : tagValues;
+
+        // Return filtered values as generic tags
+        return filteredValues.map((v: string) => this.toGenericTag(tagName, v));
       })
+      .filter(tags => tags.length > 0) // Remove empty arrays after filtering
       .sort((a, b) => a.length - b.length);
+  }
+
+  private extractAndTagsCollectionFrom(
+    filter: Filter,
+  ): Array<{ tagName: string; values: string[] }> {
+    return Object.keys(filter)
+      .filter(
+        key =>
+          key.startsWith('&') &&
+          Array.isArray(filter[key]) &&
+          filter[key].length > 0,
+      )
+      .map(key => {
+        const tagName = key.slice(1); // Remove the '&' prefix
+        return {
+          tagName,
+          values: filter[key] as string[],
+        };
+      });
+  }
+
+  private createAndTagSubQuery(
+    tagName: string,
+    values: string[],
+  ): SelectQueryBuilder<Database, 'generic_tags', { event_id: string }> {
+    // Convert values to generic tag format
+    const genericTagValues = values.map(v => this.toGenericTag(tagName, v));
+
+    // Use a subquery with GROUP BY + HAVING COUNT for AND logic
+    // This ensures ALL specified values exist for the event
+    return this.db
+      .selectFrom('generic_tags')
+      .select('event_id')
+      .where('tag', 'in', genericTagValues)
+      .groupBy('event_id')
+      .having(sql`COUNT(DISTINCT tag)`, '=', values.length);
   }
 
   private getLimitFrom(filter: Filter): number {
