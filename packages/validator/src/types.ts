@@ -41,7 +41,7 @@ export type ValidatorOptions = {
    */
   maxFilterSearchStringLength?: number;
   /**
-   * enable NIP-nd (delegated Nostr) validation. `Default: false`
+   * enable NIP-91 (delegated Nostr) validation. `Default: false`
    */
   enableNipNd?: boolean;
 };

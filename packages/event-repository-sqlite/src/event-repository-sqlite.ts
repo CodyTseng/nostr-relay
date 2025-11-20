@@ -368,7 +368,7 @@ export class EventRepositorySqlite extends EventRepository {
       );
     }
 
-    // Handle AND tag filters (& prefix) first - NIP-ND
+    // Handle AND tag filters (& prefix) first - NIP-91
     // AND takes precedence and requires ALL values to be present
     const andTagsCollection = this.extractAndTagsCollectionFrom(filter);
     for (const { tagName, values } of andTagsCollection) {
@@ -429,7 +429,7 @@ export class EventRepositorySqlite extends EventRepository {
       .select('g.event_id')
       .distinct();
 
-    // Handle AND tag filters (& prefix) first - NIP-ND
+    // Handle AND tag filters (& prefix) first - NIP-91
     const andTagsCollection = this.extractAndTagsCollectionFrom(filter);
     for (const { tagName, values } of andTagsCollection) {
       const andSubQuery = this.createAndTagSubQuery(tagName, values);
@@ -495,11 +495,11 @@ export class EventRepositorySqlite extends EventRepository {
         const tagName = key[1];
         const tagValues = filter[key] as string[];
 
-        // Check if there's a corresponding AND filter for this tag (NIP-ND)
+        // Check if there's a corresponding AND filter for this tag (NIP-91)
         const andKey = `&${tagName}` as keyof Filter;
         const andValues = filter[andKey] as string[] | undefined;
 
-        // Filter out values that are in AND tags (NIP-ND rule)
+        // Filter out values that are in AND tags (NIP-91 rule)
         const filteredValues =
           andValues && Array.isArray(andValues)
             ? tagValues.filter(v => !(andValues as string[]).includes(v))

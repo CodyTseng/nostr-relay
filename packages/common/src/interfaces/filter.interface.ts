@@ -61,7 +61,7 @@ export interface Filter {
   '#X'?: string[];
   '#Y'?: string[];
   '#Z'?: string[];
-  // AND filters (& prefix) - NIP-ND
+  // AND filters (& prefix) - NIP-91
   '&a'?: string[];
   '&b'?: string[];
   '&c'?: string[];

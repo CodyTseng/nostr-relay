@@ -164,14 +164,14 @@ describe('Validator', () => {
       await expect(validator.validateFilter(filter)).resolves.toEqual(filter);
     });
 
-    it('should validate AND filters (disable NIP-ND)', async () => {
+    it('should validate AND filters (disable NIP-91)', async () => {
       const filter = {
         '&t': ['hello', 'world'],
       };
       await expect(validator.validateFilter(filter)).resolves.toEqual({});
     });
 
-    it('should validate AND filters (enable NIP-ND)', async () => {
+    it('should validate AND filters (enable NIP-91)', async () => {
       const validatorEnabledNipNd = new Validator({ enableNipNd: true });
       const filter = {
         '&t': ['hello', 'world'],
