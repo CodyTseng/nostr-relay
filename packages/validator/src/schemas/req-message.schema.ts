@@ -130,7 +130,7 @@ export function createFilterSchema(
 
   return schema
     .extend({
-      // AND filters (& prefix) - NIP-ND
+      // AND filters (& prefix) - NIP-91
       ['&a']: createGenericTagFilterValuesSchema(options),
       ['&b']: createGenericTagFilterValuesSchema(options),
       ['&c']: createGenericTagFilterValuesSchema(options),
