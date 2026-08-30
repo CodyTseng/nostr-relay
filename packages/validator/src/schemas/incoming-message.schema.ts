@@ -2,6 +2,7 @@ import { IncomingMessage } from '@nostr-relay/common';
 import { z } from 'zod';
 import { createAuthMessageSchema } from './auth-message.schema';
 import { createCloseMessageSchema } from './close-message.schema';
+import { createCountMessageSchema } from './count-message.schema';
 import { createEventMessageSchema } from './event-message.schema';
 import { createReqMessageSchema } from './req-message.schema';
 import { RequiredValidatorOptions } from '../types';
@@ -13,6 +14,7 @@ export function createIncomingMessageSchema(
     createEventMessageSchema(options),
     createCloseMessageSchema(options),
     createReqMessageSchema(options),
+    createCountMessageSchema(options),
     createAuthMessageSchema(options),
   ]);
 }

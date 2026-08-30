@@ -44,6 +44,22 @@ export abstract class EventRepository {
   abstract find(filter: Filter): Promise<Event[]> | Observable<Event> | Event[];
 
   /**
+   * Count distinct events matching any of the filters (NIP-45).
+   * Repositories may override this method to opt into COUNT support.
+   *
+   * @param filters Query filters
+   * @param excludedKinds Event kinds that must not contribute to the count
+   */
+  async count(
+    filters: Filter[],
+    excludedKinds: number[] = [],
+  ): Promise<number> {
+    void filters;
+    void excludedKinds;
+    throw new Error('unsupported: COUNT is not supported by this repository');
+  }
+
+  /**
    * This method is called when the event repository should be closed. You can
    * release resources in this method.
    */

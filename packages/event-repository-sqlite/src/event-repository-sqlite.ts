@@ -287,6 +287,45 @@ export class EventRepositorySqlite extends EventRepository {
     return rows.map(this.toEvent);
   }
 
+  async count(
+    filters: Filter[],
+    excludedKinds: number[] = [],
+  ): Promise<number> {
+    if (filters.length === 0) return 0;
+
+    const queries = filters.flatMap(filter => {
+      const genericTags = this.extractGenericTagsCollectionFrom(filter);
+      if (!filter.ids?.length && genericTags.length > 2) {
+        return [];
+      }
+
+      const query = this.createSelectQuery(filter, false)
+        .select('e.id')
+        .$if(genericTags.length > 0, qb => qb.distinct())
+        .$if(excludedKinds.length > 0, qb =>
+          qb.where('e.kind', 'not in', excludedKinds),
+        );
+      return [
+        this.db
+          .selectFrom(query.as('matching_filter_events'))
+          .select('matching_filter_events.id'),
+      ];
+    });
+
+    if (queries.length === 0) return 0;
+
+    let matchingEventsQuery = queries[0];
+    for (const query of queries.slice(1)) {
+      matchingEventsQuery = matchingEventsQuery.union(query);
+    }
+
+    const row = await this.db
+      .selectFrom(matchingEventsQuery.as('matching_events'))
+      .select(eb => eb.fn.countAll<number>().as('count'))
+      .executeTakeFirstOrThrow();
+    return Number(row.count);
+  }
+
   async deleteByDeletionRequest(event: Event): Promise<void> {
     const author = EventUtils.getAuthor(event);
     const idSet = new Set<string>();
@@ -356,7 +395,10 @@ export class EventRepositorySqlite extends EventRepository {
     this.maxLimit = limit * MAX_LIMIT_MULTIPLIER;
   }
 
-  private createSelectQuery(filter: Filter): eventSelectQueryBuilder {
+  private createSelectQuery(
+    filter: Filter,
+    orderByCreatedAt = true,
+  ): eventSelectQueryBuilder {
     let query = this.db.selectFrom('events as e');
 
     const searchStr = filter.search?.trim();
@@ -416,7 +458,7 @@ export class EventRepositorySqlite extends EventRepository {
       query = query.where('e.kind', 'in', filter.kinds);
     }
 
-    return query.orderBy('e.created_at desc');
+    return orderByCreatedAt ? query.orderBy('e.created_at desc') : query;
   }
 
   private createGenericTagsSelectQuery(

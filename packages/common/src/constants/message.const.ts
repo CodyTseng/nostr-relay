@@ -3,6 +3,7 @@ export const MessageType = {
   EVENT: 'EVENT',
   CLOSE: 'CLOSE',
   AUTH: 'AUTH',
+  COUNT: 'COUNT',
   EOSE: 'EOSE',
   OK: 'OK',
   NOTICE: 'NOTICE',

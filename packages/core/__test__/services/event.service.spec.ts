@@ -31,6 +31,7 @@ describe('eventService', () => {
       isSearchSupported: jest.fn().mockReturnValue(false),
       upsert: jest.fn(),
       find: jest.fn(),
+      count: jest.fn(),
       findOne: jest.fn(),
       deleteByDeletionRequest: jest.fn(),
       destroy: jest.fn(),
@@ -140,6 +141,26 @@ describe('eventService', () => {
       await new Promise(resolve => setTimeout(resolve, 10));
       expect(await toPromise(eventServiceWithCache.find$(filters))).toEqual([]);
       expect(fakeFind$).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  describe('count', () => {
+    it('should return the repository count', async () => {
+      const filters = [{ kinds: [EventKind.TEXT_NOTE] }];
+      jest.spyOn(eventRepository, 'count').mockResolvedValue(2);
+
+      expect(await eventService.count(filters)).toBe(2);
+      expect(eventRepository.count).toHaveBeenCalledWith(filters, []);
+    });
+
+    it('should skip search filters when the repository does not support search', async () => {
+      const supportedFilter = { kinds: [EventKind.TEXT_NOTE] };
+      jest.spyOn(eventRepository, 'count').mockResolvedValue(1);
+
+      expect(
+        await eventService.count([{ search: 'nostr' }, supportedFilter]),
+      ).toBe(1);
+      expect(eventRepository.count).toHaveBeenCalledWith([supportedFilter], []);
     });
   });
 

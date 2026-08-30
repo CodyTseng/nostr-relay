@@ -12,6 +12,19 @@ export type HandleReqMessageResult = {
 };
 
 /**
+ * Result of handling COUNT message
+ */
+export type HandleCountMessageResult =
+  | {
+      /** Number of distinct events matching any requested filter. */
+      count: number;
+    }
+  | {
+      /** Error returned while handling the count request. */
+      error: string;
+    };
+
+/**
  * Result of handling EVENT message
  */
 export type HandleEventMessageResult = {
@@ -50,6 +63,7 @@ export type HandleAuthMessageResult = {
  */
 export type HandleMessageResult =
   | ({ messageType: typeof MessageType.REQ } & HandleReqMessageResult)
+  | ({ messageType: typeof MessageType.COUNT } & HandleCountMessageResult)
   | ({ messageType: typeof MessageType.EVENT } & HandleEventMessageResult)
   | ({ messageType: typeof MessageType.CLOSE } & HandleCloseMessageResult)
   | ({ messageType: typeof MessageType.AUTH } & HandleAuthMessageResult)

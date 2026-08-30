@@ -6,6 +6,7 @@ import { Filter } from './filter.interface';
 export type IncomingMessage =
   | IncomingEventMessage
   | IncomingReqMessage
+  | IncomingCountMessage
   | IncomingCloseMessage
   | IncomingAuthMessage;
 
@@ -15,8 +16,15 @@ export type IncomingReqMessage = [
   SubscriptionId,
   ...Filter[],
 ];
+export type IncomingCountMessage = [
+  typeof MessageType.COUNT,
+  SubscriptionId,
+  ...Filter[],
+];
 export type IncomingCloseMessage = [typeof MessageType.CLOSE, SubscriptionId];
 export type IncomingAuthMessage = [typeof MessageType.AUTH, Event];
+
+export type CountResult = { count: number };
 
 export type OutgoingMessage =
   | OutgoingOkMessage
@@ -24,7 +32,8 @@ export type OutgoingMessage =
   | OutgoingEoseMessage
   | OutgoingNoticeMessage
   | OutgoingAuthMessage
-  | OutgoingClosedMessage;
+  | OutgoingClosedMessage
+  | OutgoingCountMessage;
 
 export type OutgoingOkMessage = [
   typeof MessageType.OK,
@@ -44,4 +53,9 @@ export type OutgoingClosedMessage = [
   typeof MessageType.CLOSED,
   SubscriptionId,
   string,
+];
+export type OutgoingCountMessage = [
+  typeof MessageType.COUNT,
+  SubscriptionId,
+  CountResult,
 ];

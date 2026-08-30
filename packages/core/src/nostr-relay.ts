@@ -4,12 +4,14 @@ import {
   ConsoleLoggerService,
   Event,
   EventId,
+  EventKind,
   EventRepository,
   EventUtils,
   Filter,
   FilterUtils,
   HandleAuthMessageResult,
   HandleCloseMessageResult,
+  HandleCountMessageResult,
   HandleEventMessageResult,
   HandleEventResult,
   HandleMessageResult,
@@ -23,6 +25,7 @@ import {
   UnauthenticatedError,
   createOutgoingAuthMessage,
   createOutgoingClosedMessage,
+  createOutgoingCountMessage,
   createOutgoingEoseMessage,
   createOutgoingEventMessage,
   createOutgoingNoticeMessage,
@@ -163,6 +166,14 @@ export class NostrRelay {
         ...result,
       };
     }
+    if (message[0] === MessageType.COUNT) {
+      const [, queryId, ...filters] = message;
+      const result = await this.handleCountMessage(ctx, queryId, filters);
+      return {
+        messageType: MessageType.COUNT,
+        ...result,
+      };
+    }
     if (message[0] === MessageType.CLOSE) {
       const [, subscriptionId] = message;
       const result = this.handleCloseMessage(ctx, subscriptionId);
@@ -223,6 +234,25 @@ export class NostrRelay {
         ctx.sendMessage(createOutgoingAuthMessage(ctx.id));
       }
       return { events: [] };
+    }
+  }
+
+  private async handleCountMessage(
+    ctx: ClientContext,
+    queryId: SubscriptionId,
+    filters: Filter[],
+  ): Promise<HandleCountMessageResult> {
+    try {
+      const count = await this.countEvents(filters, ctx.pubkey);
+      ctx.sendMessage(createOutgoingCountMessage(queryId, count));
+      return { count };
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'error: unknown';
+      ctx.sendMessage(createOutgoingClosedMessage(queryId, message));
+      if (error instanceof UnauthenticatedError) {
+        ctx.sendMessage(createOutgoingAuthMessage(ctx.id));
+      }
+      return { error: message };
     }
   }
 
@@ -342,6 +372,35 @@ export class NostrRelay {
         complete: () => resolve(events),
       });
     });
+  }
+
+  /** Count distinct stored events matching any filter (NIP-45). */
+  async countEvents(filters: Filter[], pubkey?: string): Promise<number> {
+    if (
+      this.hostname &&
+      filters.some(filter => FilterUtils.hasEncryptedDirectMessageKind(filter))
+    ) {
+      throw new Error(
+        'restricted: encrypted direct message counts are not supported',
+      );
+    }
+
+    if (
+      this.hostname &&
+      !pubkey &&
+      filters.some(filter =>
+        FilterUtils.canIncludeEncryptedDirectMessageKind(filter),
+      )
+    ) {
+      throw new UnauthenticatedError(
+        "restricted: we can't serve counts that may include DMs to unauthenticated users, does your client implement NIP-42?",
+      );
+    }
+
+    const excludedKinds = this.hostname
+      ? [EventKind.ENCRYPTED_DIRECT_MESSAGE]
+      : [];
+    return await this.eventService.count(filters, excludedKinds);
   }
 
   private getClientContext(client: Client, ip?: string): ClientContext {

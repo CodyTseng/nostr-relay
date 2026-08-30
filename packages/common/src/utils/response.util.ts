@@ -3,6 +3,7 @@ import {
   Event,
   OutgoingAuthMessage,
   OutgoingClosedMessage,
+  OutgoingCountMessage,
   OutgoingEoseMessage,
   OutgoingEventMessage,
   OutgoingNoticeMessage,
@@ -88,4 +89,12 @@ export function createOutgoingClosedMessage(
   message = '',
 ): OutgoingClosedMessage {
   return [MessageType.CLOSED, subscriptionId, message];
+}
+
+/** Create a NIP-45 COUNT response. */
+export function createOutgoingCountMessage(
+  queryId: SubscriptionId,
+  count: number,
+): OutgoingCountMessage {
+  return [MessageType.COUNT, queryId, { count }];
 }

@@ -53,6 +53,17 @@ export class EventService {
     );
   }
 
+  async count(
+    filters: Filter[],
+    excludedKinds: number[] = [],
+  ): Promise<number> {
+    const supportedFilters = filters.filter(
+      filter =>
+        filter.search === undefined || this.eventRepository.isSearchSupported(),
+    );
+    return await this.eventRepository.count(supportedFilters, excludedKinds);
+  }
+
   async handleEvent(event: Event): Promise<HandleEventResult> {
     const beforeHandleEventResult =
       await this.pluginManagerService.beforeHandleEvent(event);

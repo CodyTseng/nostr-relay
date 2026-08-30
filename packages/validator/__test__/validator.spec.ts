@@ -117,6 +117,21 @@ describe('Validator', () => {
       ]);
     });
 
+    it('should validate count message', async () => {
+      const message = [
+        MessageType.COUNT,
+        'queryId',
+        { kinds: [1], '#t': ['nostr'] },
+        {
+          ids: [
+            '0000000000000000000000000000000000000000000000000000000000000000',
+          ],
+        },
+      ];
+
+      expect(await validator.validateIncomingMessage(message)).toEqual(message);
+    });
+
     it('should validate close message', async () => {
       expect(
         await validator.validateIncomingMessage([

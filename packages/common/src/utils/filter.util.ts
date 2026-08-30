@@ -8,4 +8,11 @@ export class FilterUtils {
       filter.kinds.includes(EventKind.ENCRYPTED_DIRECT_MESSAGE)
     );
   }
+
+  static canIncludeEncryptedDirectMessageKind(filter: Filter): boolean {
+    return (
+      !filter.kinds?.length ||
+      filter.kinds.includes(EventKind.ENCRYPTED_DIRECT_MESSAGE)
+    );
+  }
 }

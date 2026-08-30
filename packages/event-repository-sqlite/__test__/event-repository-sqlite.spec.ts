@@ -623,6 +623,75 @@ describe('EventRepositorySqlite', () => {
     });
   });
 
+  describe('count', () => {
+    const now = getTimestampInSeconds();
+    const events = [
+      createEvent({
+        kind: EventKind.TEXT_NOTE,
+        content: 'first',
+        tags: [['t', 'nostr']],
+        created_at: now + 2,
+      }),
+      createEvent({
+        kind: EventKind.TEXT_NOTE,
+        content: 'second',
+        tags: [['t', 'typescript']],
+        created_at: now + 1,
+      }),
+      createEvent({
+        kind: EventKind.SET_METADATA,
+        content: 'profile',
+        created_at: now,
+      }),
+    ];
+
+    beforeEach(async () => {
+      await Promise.all(events.map(event => eventRepository.upsert(event)));
+    });
+
+    it('should count all matches without applying the default find limit', async () => {
+      eventRepository.setDefaultLimit(1);
+      expect(
+        await eventRepository.count([{ kinds: [EventKind.TEXT_NOTE] }]),
+      ).toBe(2);
+    });
+
+    it('should OR filters and count overlapping events once', async () => {
+      expect(
+        await eventRepository.count([
+          { kinds: [EventKind.TEXT_NOTE] },
+          { '#t': ['nostr'] },
+        ]),
+      ).toBe(2);
+    });
+
+    it('should ignore explicit limits and handle empty filter lists', async () => {
+      expect(
+        await eventRepository.count([
+          { kinds: [EventKind.TEXT_NOTE], limit: 1 },
+        ]),
+      ).toBe(2);
+      expect(await eventRepository.count([])).toBe(0);
+    });
+
+    it('should skip filters with more than two tag attributes', async () => {
+      expect(
+        await eventRepository.count([
+          {
+            '#e': ['event'],
+            '#p': ['pubkey'],
+            '#t': ['nostr'],
+          },
+          { kinds: [EventKind.TEXT_NOTE] },
+        ]),
+      ).toBe(2);
+    });
+
+    it('should exclude requested kinds from the count', async () => {
+      expect(await eventRepository.count([{}], [EventKind.TEXT_NOTE])).toBe(1);
+    });
+  });
+
   describe('deleteByDeletionRequest', () => {
     const now = getTimestampInSeconds();
     const events = [

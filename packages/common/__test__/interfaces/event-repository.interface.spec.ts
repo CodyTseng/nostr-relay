@@ -64,6 +64,14 @@ describe('EventRepository', () => {
     });
   });
 
+  describe('count', () => {
+    it('should reject when count is not supported', async () => {
+      await expect(eventRepository.count([])).rejects.toThrow(
+        'unsupported: COUNT is not supported by this repository',
+      );
+    });
+  });
+
   describe('deleteByDeletionRequest', () => {
     it('should do nothing', async () => {
       await eventRepository.deleteByDeletionRequest({} as any);
