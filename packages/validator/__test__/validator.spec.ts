@@ -284,3 +284,28 @@ describe('Validator', () => {
     expect(validator.getEventSchema()).toBe(validator['eventSchema']);
   });
 });
+
+describe('filter normalization and request bounds', () => {
+  it('normalizes duplicate AND values and accepts explicit empty OR sets', async () => {
+    const validator = new Validator({ enableNipNd: true });
+    expect(
+      await validator.validateFilter({
+        '#t': [],
+        '&t': ['cat', 'cat'],
+        '&p': [],
+        search: '   ',
+      }),
+    ).toEqual({ '#t': [], '&t': ['cat'] });
+  });
+
+  it('bounds the number of filters in REQ, COUNT, and direct filter validation', async () => {
+    const validator = new Validator({ maxFiltersPerRequest: 1 });
+    await expect(
+      validator.validateIncomingMessage(['REQ', 's', {}, {}]),
+    ).rejects.toThrow('too many filters');
+    await expect(
+      validator.validateIncomingMessage(['COUNT', 's', {}, {}]),
+    ).rejects.toThrow('too many filters');
+    await expect(validator.validateFilters([{}, {}])).rejects.toThrow();
+  });
+});

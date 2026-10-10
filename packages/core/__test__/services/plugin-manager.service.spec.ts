@@ -24,6 +24,7 @@ describe('PluginManagerService', () => {
         handleMessage: jest.fn(),
         beforeHandleEvent: jest.fn(),
         broadcast: jest.fn(),
+        canReadEvent: jest.fn(),
       };
 
       pluginManagerService.register(plugin);
@@ -33,6 +34,7 @@ describe('PluginManagerService', () => {
         plugin,
       ]);
       expect(pluginManagerService['broadcastPlugins']).toEqual([plugin]);
+      expect(pluginManagerService['canReadEventPlugins']).toEqual([plugin]);
     });
 
     it('should register plugins', () => {
@@ -181,19 +183,74 @@ describe('PluginManagerService', () => {
     });
   });
 
+  describe('canReadEvent', () => {
+    it('allows reads when no guards are registered', async () => {
+      expect(await pluginManagerService.canReadEvent(ctx, {} as Event)).toBe(
+        true,
+      );
+    });
+
+    it('passes context and event to synchronous and asynchronous guards in order', async () => {
+      const event = {} as Event;
+      const calls: number[] = [];
+      const first = jest.fn((recipient, candidate) => {
+        expect(recipient).toBe(ctx);
+        expect(candidate).toBe(event);
+        calls.push(1);
+        return true;
+      });
+      const second = jest.fn(async () => {
+        calls.push(2);
+        return true;
+      });
+      pluginManagerService.register(
+        { canReadEvent: first },
+        { canReadEvent: second },
+      );
+
+      expect(await pluginManagerService.canReadEvent(ctx, event)).toBe(true);
+      expect(calls).toEqual([1, 2]);
+      expect(second).toHaveBeenCalledWith(ctx, event);
+    });
+
+    it('stops at the first denial', async () => {
+      const later = jest.fn(() => true);
+      pluginManagerService.register(
+        { canReadEvent: () => true },
+        { canReadEvent: async () => false },
+        { canReadEvent: later },
+      );
+      expect(await pluginManagerService.canReadEvent(ctx, {} as Event)).toBe(
+        false,
+      );
+      expect(later).not.toHaveBeenCalled();
+    });
+
+    it('propagates permission lookup failures', async () => {
+      pluginManagerService.register({
+        canReadEvent: async () => {
+          throw new Error('lookup failed');
+        },
+      });
+      await expect(
+        pluginManagerService.canReadEvent(ctx, {} as Event),
+      ).rejects.toThrow('lookup failed');
+    });
+  });
+
   describe('broadcast', () => {
     it('should call plugins in order', async () => {
       const arr: number[] = [];
       pluginManagerService.register(
         {
-          broadcast: async (_message, next) => {
+          broadcast: async (_ctx, _event, next) => {
             arr.push(1);
             await next();
             arr.push(5);
           },
         },
         {
-          broadcast: async (_message, next) => {
+          broadcast: async (_ctx, _event, next) => {
             arr.push(2);
             await next();
             arr.push(4);
@@ -201,11 +258,13 @@ describe('PluginManagerService', () => {
         },
       );
 
-      await pluginManagerService.broadcast({} as Event, async () => {
+      const next = jest.fn(async () => {
         arr.push(3);
       });
+      await pluginManagerService.broadcast(ctx, {} as Event, next);
 
       expect(arr).toEqual([1, 2, 3, 4, 5]);
+      expect(next).toHaveBeenCalledWith(ctx, {});
     });
   });
 });

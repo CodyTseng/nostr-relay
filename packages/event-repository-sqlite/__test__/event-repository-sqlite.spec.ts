@@ -379,7 +379,7 @@ describe('EventRepositorySqlite', () => {
         expect(result).toEqual([TEXT_NOTE_EVENT]);
       });
 
-      it('should return empty array if query is too complex', async () => {
+      it('applies every tag condition even when more than two are present', async () => {
         const result = await eventRepository.find({
           '#t': ['test'],
           '#e': ['test'],
@@ -674,7 +674,7 @@ describe('EventRepositorySqlite', () => {
       expect(await eventRepository.count([])).toBe(0);
     });
 
-    it('should skip filters with more than two tag attributes', async () => {
+    it('handles filters with more than two tag attributes', async () => {
       expect(
         await eventRepository.count([
           {

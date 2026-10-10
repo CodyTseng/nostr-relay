@@ -1,6 +1,13 @@
-import { firstValueFrom, Observable } from 'rxjs';
+import { defer, EMPTY, firstValueFrom, from, mergeMap, Observable } from 'rxjs';
+import { abortable } from '../utils/abort.util';
+import { FilterUtils } from '../utils/filter.util';
 import { Event } from './event.interface';
 import { Filter } from './filter.interface';
+
+export interface EventQueryOptions {
+  /** Adapters should cancel underlying I/O when possible. */
+  signal?: AbortSignal;
+}
 
 /**
  * The result of upsert method.
@@ -41,7 +48,10 @@ export abstract class EventRepository {
    *
    * @param filter Query filter
    */
-  abstract find(filter: Filter): Promise<Event[]> | Observable<Event> | Event[];
+  abstract find(
+    filter: Filter,
+    options?: EventQueryOptions,
+  ): Promise<Event[]> | Observable<Event> | Event[];
 
   /**
    * Count distinct events matching any of the filters (NIP-45).
@@ -53,9 +63,11 @@ export abstract class EventRepository {
   async count(
     filters: Filter[],
     excludedKinds: number[] = [],
+    options: EventQueryOptions = {},
   ): Promise<number> {
     void filters;
     void excludedKinds;
+    void options;
     throw new Error('unsupported: COUNT is not supported by this repository');
   }
 
@@ -82,12 +94,9 @@ export abstract class EventRepository {
    * @param filter Query filter
    */
   async findOne(filter: Filter): Promise<Event | null> {
-    const query = this.find({ ...filter, limit: 1 });
-    if (query instanceof Observable) {
-      return await firstValueFrom(query).catch(() => null);
-    }
-    const [event] = await query;
-    return event ?? null;
+    return firstValueFrom(this.find$({ ...filter, limit: 1 }), {
+      defaultValue: null,
+    });
   }
 
   /**
@@ -96,19 +105,18 @@ export abstract class EventRepository {
    *
    * @param filter Query filter
    */
-  find$(filter: Filter): Observable<Event> {
-    const query = this.find(filter);
-    if (query instanceof Observable) {
-      return query;
-    }
-    return new Observable(subscriber => {
-      (async (): Promise<void> => {
-        const events = await query;
-        for (const event of events) {
-          subscriber.next(event);
-        }
-        subscriber.complete();
-      })();
-    });
+  find$(filter: Filter, options: EventQueryOptions = {}): Observable<Event> {
+    return abortable(
+      defer(() => {
+        options.signal?.throwIfAborted();
+        const normalized = FilterUtils.normalize(filter);
+        if (FilterUtils.isMatchNone(normalized)) return EMPTY;
+        const query = this.find(normalized, options);
+        return query instanceof Observable
+          ? query
+          : from(Promise.resolve(query)).pipe(mergeMap(events => from(events)));
+      }),
+      options.signal,
+    );
   }
 }

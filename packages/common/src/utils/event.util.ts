@@ -2,6 +2,7 @@ import { EventKind, EventType, TagName } from '../constants';
 import { Event, Filter, Tag } from '../interfaces';
 import { schnorrVerify, sha256 } from './crypto.util';
 import { getTimestampInSeconds } from './time.util';
+import { FilterUtils } from './filter.util';
 
 export class EventUtils {
   static getType(kind: number): EventType {
@@ -193,6 +194,9 @@ export class EventUtils {
   }
 
   static isMatchingFilter(event: Event, filter: Filter): boolean {
+    filter = FilterUtils.normalize(filter);
+    if (FilterUtils.isMatchNone(filter) || filter.search !== undefined)
+      return false;
     if (filter.ids && !filter.ids.some(id => id === event.id)) {
       return false;
     }
@@ -208,36 +212,46 @@ export class EventUtils {
       return false;
     }
 
-    if (filter.since && event.created_at < filter.since) {
+    if (filter.since !== undefined && event.created_at < filter.since) {
       return false;
     }
 
-    if (filter.until && event.created_at > filter.until) {
+    if (filter.until !== undefined && event.created_at > filter.until) {
       return false;
+    }
+
+    for (const [key, values] of Object.entries(filter)) {
+      if (!/^[#&][a-zA-Z]$/.test(key) || !values?.length) {
+        continue;
+      }
+
+      const tagName = key[1];
+      const hasTagValue = (value: string): boolean =>
+        event.tags.some(
+          ([name, tagValue]) => name === tagName && tagValue === value,
+        );
+
+      if (key[0] === '&') {
+        if (!values.every(hasTagValue)) {
+          return false;
+        }
+      } else {
+        // Match the repository's rule: AND values are excluded from OR filters.
+        const andValues = filter[`&${tagName}` as keyof Filter] as
+          | string[]
+          | undefined;
+        const orValues = andValues
+          ? values.filter((value: string) => !andValues.includes(value))
+          : values;
+
+        if (orValues.length && !orValues.some(hasTagValue)) {
+          return false;
+        }
+      }
     }
 
     // TODO: NIP-50
 
     return true;
-  }
-
-  static checkPermission(event: Event, pubkey?: string): boolean {
-    if (event.kind !== EventKind.ENCRYPTED_DIRECT_MESSAGE) {
-      return true;
-    }
-
-    if (!pubkey) {
-      return false;
-    }
-
-    const author = EventUtils.getAuthor(event, false);
-    if (author === pubkey) {
-      return true;
-    }
-
-    const pubkeyTag = event.tags.find(
-      ([tagName]) => tagName === TagName.PUBKEY,
-    );
-    return pubkeyTag ? pubkey === pubkeyTag[1] : false;
   }
 }

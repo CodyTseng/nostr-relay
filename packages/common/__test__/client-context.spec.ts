@@ -16,7 +16,7 @@ describe('ClientContext', () => {
   it('should initialize with correct values', () => {
     expect(ctx.id).toBeTruthy();
     expect(ctx.subscriptions).toBeTruthy();
-    expect(ctx.subscriptions.max).toBe(20);
+    expect(ctx.maxSubscriptionsPerClient).toBe(20);
   });
 
   describe('isOpen', () => {

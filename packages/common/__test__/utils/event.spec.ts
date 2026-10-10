@@ -5,6 +5,7 @@ import {
   EventKind,
   EventType,
   EventUtils,
+  Filter,
   getTimestampInSeconds,
   schnorrSign,
   sha256,
@@ -336,60 +337,68 @@ describe('EventUtils', () => {
     ).toBe('a09659cd9ee89cd3743bc29aa67edf1d7d12fb624699fcd3d6d33eef250b01e7');
   });
 
-  it('checkPermission', () => {
-    expect(
-      EventUtils.checkPermission({ kind: EventKind.TEXT_NOTE } as Event),
-    ).toBeTruthy();
+  describe('isMatchingFilter tag filters', () => {
+    const event = {
+      kind: EventKind.TEXT_NOTE,
+      tags: [
+        ['t', 'nostr'],
+        ['t', 'relay'],
+        ['p', 'alice', 'relay-url'],
+        ['T', 'UPPER'],
+        ['d', ''],
+      ],
+    } as Event;
 
-    expect(
-      EventUtils.checkPermission({
-        kind: EventKind.ENCRYPTED_DIRECT_MESSAGE,
-      } as Event),
-    ).toBeFalsy();
+    it.each<[string, Filter, boolean]>([
+      ['matches any OR value', { '#t': ['missing', 'nostr'] }, true],
+      ['rejects unmatched OR values', { '#t': ['missing'] }, false],
+      ['requires each tag filter', { '#t': ['nostr'], '#p': ['bob'] }, false],
+      [
+        'matches different tag filters',
+        { '#t': ['relay'], '#p': ['alice'] },
+        true,
+      ],
+      ['matches the second tag element only', { '#p': ['relay-url'] }, false],
+      ['matches exact values', { '#t': ['nos'] }, false],
+      ['keeps tag names case sensitive', { '#T': ['nostr'] }, false],
+      ['supports uppercase tag names', { '#T': ['UPPER'] }, true],
+      ['keeps values case sensitive', { '#t': ['NOSTR'] }, false],
+      ['matches empty tag values', { '#d': [''] }, true],
+      ['empty OR filters match nothing', { '#t': [], '&p': [] }, false],
+      ['ignores undefined filters', { '#t': undefined, '&p': undefined }, true],
+      ['requires all AND values', { '&t': ['nostr', 'relay'] }, true],
+      ['rejects missing AND values', { '&t': ['nostr', 'missing'] }, false],
+      ['requires each AND filter', { '&t': ['nostr'], '&p': ['bob'] }, false],
+      ['combines AND and OR', { '&t': ['nostr'], '#t': ['relay'] }, true],
+      [
+        'excludes AND values from OR',
+        { '&t': ['nostr'], '#t': ['nostr', 'missing'] },
+        false,
+      ],
+      [
+        'ignores OR fully covered by AND',
+        { '&t': ['nostr', 'relay'], '#t': ['nostr'] },
+        true,
+      ],
+      ['still checks other fields', { '#t': ['nostr'], kinds: [0] }, false],
+    ])('%s', (_description, filter, expected) => {
+      expect(EventUtils.isMatchingFilter(event, filter)).toBe(expected);
+    });
 
-    expect(
-      EventUtils.checkPermission(
-        {
-          kind: EventKind.ENCRYPTED_DIRECT_MESSAGE,
-          pubkey: 'pubkey',
-          tags: [] as string[][],
-        } as Event,
-        'pubkey',
-      ),
-    ).toBeTruthy();
-
-    expect(
-      EventUtils.checkPermission(
-        {
-          kind: EventKind.ENCRYPTED_DIRECT_MESSAGE,
-          pubkey: 'fake',
-          tags: [[TagName.PUBKEY, 'pubkey']],
-        } as Event,
-        'pubkey',
-      ),
-    ).toBeTruthy();
-
-    expect(
-      EventUtils.checkPermission(
-        {
-          kind: EventKind.ENCRYPTED_DIRECT_MESSAGE,
-          pubkey: 'fake',
-          tags: [[TagName.PUBKEY, 'fake']],
-        } as Event,
-        'pubkey',
-      ),
-    ).toBeFalsy();
-
-    expect(
-      EventUtils.checkPermission(
-        {
-          kind: EventKind.ENCRYPTED_DIRECT_MESSAGE,
-          pubkey: 'fake',
-          tags: [] as string[][],
-        } as Event,
-        'pubkey',
-      ),
-    ).toBeFalsy();
+    it('rejects events without a matching tag', () => {
+      expect(
+        EventUtils.isMatchingFilter(
+          { ...event, tags: [] },
+          { '#t': ['nostr'] },
+        ),
+      ).toBe(false);
+      expect(
+        EventUtils.isMatchingFilter(
+          { ...event, tags: [['t']] },
+          { '#t': [''] },
+        ),
+      ).toBe(false);
+    });
   });
 
   it('isMatchingFilter', () => {

@@ -1,14 +1,17 @@
 import {
   Client,
   ClientContext,
+  ClientReadyState,
+  ClientSubscription,
+  EventQueryOptions,
+  FilterUtils,
+  abortable,
+  waitFor,
   ConsoleLoggerService,
   Event,
-  EventId,
-  EventKind,
   EventRepository,
   EventUtils,
   Filter,
-  FilterUtils,
   HandleAuthMessageResult,
   HandleCloseMessageResult,
   HandleCountMessageResult,
@@ -31,22 +34,26 @@ import {
   createOutgoingNoticeMessage,
   createOutgoingOkMessage,
 } from '@nostr-relay/common';
+import { concatMap, filter, lastValueFrom, tap, toArray } from 'rxjs';
 import { EventService } from './services/event.service';
 import { PluginManagerService } from './services/plugin-manager.service';
 import { SubscriptionService } from './services/subscription.service';
-import { LazyCache } from './utils';
 
 export class NostrRelay {
   private readonly options: NostrRelayOptions;
   private readonly eventService: EventService;
   private readonly subscriptionService: SubscriptionService;
-  private readonly eventHandlingLazyCache:
-    | LazyCache<EventId, Promise<HandleEventResult>>
-    | undefined;
+  private readonly queryTimeoutMs: number;
+  private readonly maxFiltersPerRequest: number;
+  private destroyed = false;
+  private readonly lifecycle = new AbortController();
+  private readonly operations = new Set<Promise<unknown>>();
+  private destruction?: Promise<void>;
   private readonly hostname?: string;
   private readonly pluginManagerService: PluginManagerService;
 
   private readonly clientContexts = new Map<Client, ClientContext>();
+  private readonly disconnectedClients = new WeakSet<Client>();
 
   /**
    * Create a new NostrRelay instance.
@@ -66,30 +73,51 @@ export class NostrRelay {
     const logger = options.logger ?? new ConsoleLoggerService();
     logger.setLogLevel(options.logLevel ?? LogLevel.INFO);
 
-    this.pluginManagerService = new PluginManagerService();
+    this.pluginManagerService = new PluginManagerService(
+      options.pluginLifecycleTimeoutMs,
+    );
     this.subscriptionService = new SubscriptionService(
       this.clientContexts,
       logger,
-      !!this.hostname,
+      this.pluginManagerService,
+      options.maxPendingEventsPerSubscription,
     );
     this.eventService = new EventService(
       eventRepository,
       this.subscriptionService,
       this.pluginManagerService,
       logger,
-      {
-        filterResultCacheTtl: options.filterResultCacheTtl,
-      },
     );
 
-    const eventHandlingResultCacheTtl =
-      options.eventHandlingResultCacheTtl ?? 600000;
-    if (eventHandlingResultCacheTtl > 0) {
-      this.eventHandlingLazyCache = new LazyCache({
-        max: 100 * 1024,
-        ttl: options.eventHandlingResultCacheTtl,
-      });
-    }
+    this.maxFiltersPerRequest = options.maxFiltersPerRequest ?? 20;
+    if (
+      !Number.isInteger(this.maxFiltersPerRequest) ||
+      this.maxFiltersPerRequest < 1
+    )
+      throw new Error('maxFiltersPerRequest must be a positive integer');
+    this.queryTimeoutMs = options.queryTimeoutMs ?? 30000;
+    if (!Number.isInteger(this.queryTimeoutMs) || this.queryTimeoutMs < 1)
+      throw new Error('queryTimeoutMs must be a positive integer');
+  }
+
+  /** Initialize plugin resources. Also called lazily by asynchronous operations. */
+  async init(): Promise<void> {
+    this.assertActive();
+    await this.pluginManagerService.init();
+    this.assertActive();
+  }
+
+  private track<T>(operation: Promise<T>): Promise<T> {
+    this.operations.add(operation);
+    const done = (): void => {
+      this.operations.delete(operation);
+    };
+    operation.then(done, done);
+    return operation;
+  }
+
+  private assertActive(): void {
+    if (this.destroyed) throw new Error('relay is destroyed');
   }
 
   /**
@@ -98,6 +126,7 @@ export class NostrRelay {
    * @param plugin Plugin to register
    */
   register(plugin: NostrRelayPlugin): NostrRelay {
+    this.assertActive();
     this.pluginManagerService.register(plugin);
     return this;
   }
@@ -110,6 +139,7 @@ export class NostrRelay {
    * @param ip IP address of the client
    */
   handleConnection(client: Client, ip?: string): void {
+    this.disconnectedClients.delete(client);
     const ctx = this.getClientContext(client, ip);
     if (this.hostname) {
       ctx.sendMessage(createOutgoingAuthMessage(ctx.id));
@@ -123,6 +153,8 @@ export class NostrRelay {
    * @param client Client instance, usually a WebSocket
    */
   handleDisconnect(client: Client): void {
+    this.disconnectedClients.add(client);
+    this.clientContexts.get(client)?.dispose();
     this.clientContexts.delete(client);
   }
 
@@ -139,10 +171,14 @@ export class NostrRelay {
     message: IncomingMessage,
   ): Promise<HandleMessageResult> {
     const ctx = this.getClientContext(client);
-    return await this.pluginManagerService.handleMessage(
-      ctx,
-      message,
-      this._handleMessage.bind(this),
+    await waitFor(this.init(), ctx.signal);
+    ctx.signal.throwIfAborted();
+    return await this.track(
+      this.pluginManagerService.handleMessage(
+        ctx,
+        message,
+        this._handleMessage.bind(this),
+      ),
     );
   }
 
@@ -150,6 +186,7 @@ export class NostrRelay {
     ctx: ClientContext,
     message: IncomingMessage,
   ): Promise<HandleMessageResult> {
+    ctx.signal.throwIfAborted();
     if (message[0] === MessageType.EVENT) {
       const [, event] = message;
       const result = await this.handleEventMessage(ctx, event);
@@ -217,23 +254,57 @@ export class NostrRelay {
     subscriptionId: SubscriptionId,
     filters: Filter[],
   ): Promise<HandleReqMessageResult> {
+    let subscription: ClientSubscription | undefined;
+    let timer: ReturnType<typeof setTimeout> | undefined;
     try {
-      const events = await this.findEvents(filters, ctx.pubkey, event => {
-        ctx.sendMessage(createOutgoingEventMessage(subscriptionId, event));
-      });
-
+      if (filters.length > this.maxFiltersPerRequest)
+        throw new Error('rate-limited: too many filters');
+      subscription = this.subscriptionService.subscribe(
+        ctx,
+        subscriptionId,
+        filters,
+        true,
+      );
+      const current = subscription;
+      timer = setTimeout(
+        () =>
+          current.controller.abort(
+            new Error('error: historical query timed out'),
+          ),
+        this.queryTimeoutMs,
+      );
+      const events = await this.findEvents(
+        current.filters,
+        ctx,
+        event => {
+          if (this.subscriptionService.isActive(ctx, current)) {
+            current.deliveredIds.add(event.id);
+            ctx.sendMessage(createOutgoingEventMessage(subscriptionId, event));
+          }
+        },
+        { signal: current.signal },
+      );
+      if (!this.subscriptionService.isActive(ctx, current))
+        return { events: [] };
       ctx.sendMessage(createOutgoingEoseMessage(subscriptionId));
-      this.subscriptionService.subscribe(ctx, subscriptionId, filters);
-
+      await this.subscriptionService.complete(ctx, current);
       return { events };
     } catch (error) {
-      ctx.sendMessage(
-        createOutgoingClosedMessage(subscriptionId, error.message),
-      );
-      if (error instanceof UnauthenticatedError) {
+      // An old generation must never close or send messages for its replacement.
+      if (
+        subscription &&
+        ctx.subscriptions.get(subscriptionId) !== subscription
+      )
+        return { events: [] };
+      this.subscriptionService.unsubscribe(ctx, subscriptionId);
+      if (!ctx.isOpen) return { events: [] };
+      const message = error instanceof Error ? error.message : 'error: unknown';
+      ctx.sendMessage(createOutgoingClosedMessage(subscriptionId, message));
+      if (error instanceof UnauthenticatedError)
         ctx.sendMessage(createOutgoingAuthMessage(ctx.id));
-      }
       return { events: [] };
+    } finally {
+      if (timer) clearTimeout(timer);
     }
   }
 
@@ -243,7 +314,10 @@ export class NostrRelay {
     filters: Filter[],
   ): Promise<HandleCountMessageResult> {
     try {
-      const count = await this.countEvents(filters, ctx.pubkey);
+      if (filters.length > this.maxFiltersPerRequest)
+        throw new Error('rate-limited: too many filters');
+      const count = await this.countEvents(filters, { signal: ctx.signal });
+      if (!ctx.isOpen) return { count };
       ctx.sendMessage(createOutgoingCountMessage(queryId, count));
       return { count };
     } catch (error) {
@@ -297,26 +371,50 @@ export class NostrRelay {
    * @param client Client instance, usually a WebSocket
    */
   isAuthorized(client: Client): boolean {
-    return this.hostname ? !!this.getClientContext(client).pubkey : true;
+    this.assertActive();
+    return this.hostname ? !!this.clientContexts.get(client)?.pubkey : true;
   }
 
   /**
-   * Broadcast an event. This method does not call any plugins.
+   * Deliver an event locally through broadcast and read plugins. Does not call publishEvent.
    *
    * @param event The event to broadcast
    */
   async broadcast(event: Event): Promise<void> {
-    await this.subscriptionService.broadcast(event);
+    await this.init();
+    this.assertActive();
+    await this.track(this.subscriptionService.broadcast(event));
   }
 
   /**
    * Destroy the NostrRelay instance. This method should be called when the
    * NostrRelay instance is no longer needed.
    */
-  async destroy(): Promise<void> {
+  destroy(): Promise<void> {
+    this.destroyed = true;
+    this.lifecycle.abort();
+    this.pluginManagerService.stop();
+    for (const ctx of this.clientContexts.values()) ctx.dispose();
     this.clientContexts.clear();
-    this.eventHandlingLazyCache?.clear();
-    await this.eventService.destroy();
+    return (this.destruction ??= this.cleanup());
+  }
+
+  private async cleanup(): Promise<void> {
+    const errors: unknown[] = [];
+    await Promise.allSettled([...this.operations]);
+    try {
+      await this.pluginManagerService.destroy();
+    } catch (error) {
+      errors.push(error);
+    }
+    if (this.options.destroyRepository !== false) {
+      try {
+        await this.eventService.destroy();
+      } catch (error) {
+        errors.push(error);
+      }
+    }
+    if (errors.length) throw new AggregateError(errors, 'relay cleanup failed');
   }
 
   /**
@@ -325,85 +423,95 @@ export class NostrRelay {
    * @param event The event to handle
    */
   async handleEvent(event: Event): Promise<HandleEventResult> {
-    const callback = (): Promise<HandleEventResult> => {
-      return this.eventService.handleEvent(event);
-    };
-
-    return this.eventHandlingLazyCache
-      ? await this.eventHandlingLazyCache.get(event.id, callback)
-      : await callback();
+    await this.init();
+    this.assertActive();
+    return this.track(this.eventService.handleEvent(event));
   }
 
   /**
-   * Find events by filters.
+   * Find events by filters. Queries with a context apply read guards.
+   * Calls without a context are trusted server-side queries and bypass read guards.
    *
    * @param filters Filters
-   * @param pubkey Public key of the client
+   * @param ctx The requesting client's context
    * @param iteratee Iteratee function to call for each event
    */
   async findEvents(
     filters: Filter[],
-    pubkey?: string,
+    ctx?: ClientContext,
     iteratee?: (event: Event) => void,
+    options: EventQueryOptions = {},
   ): Promise<Event[]> {
-    if (
-      this.hostname &&
-      filters.some(filter =>
-        FilterUtils.hasEncryptedDirectMessageKind(filter),
-      ) &&
-      !pubkey
-    ) {
-      throw new UnauthenticatedError(
-        "restricted: we can't serve DMs to unauthenticated users, does your client implement NIP-42?",
-      );
-    }
-
-    return new Promise((resolve, reject) => {
-      const events: Event[] = [];
-      this.eventService.find$(filters).subscribe({
-        next: event => {
-          if (this.hostname && !EventUtils.checkPermission(event, pubkey)) {
-            return;
-          }
-          events.push(event);
-          iteratee?.(event);
-        },
-        error: reject,
-        complete: () => resolve(events),
-      });
-    });
+    this.assertActive();
+    if (ctx && filters.length > this.maxFiltersPerRequest)
+      throw new Error('rate-limited: too many filters');
+    const signal = AbortSignal.any([
+      this.lifecycle.signal,
+      ...(ctx ? [ctx.signal] : []),
+      ...(options.signal ? [options.signal] : []),
+    ]);
+    await waitFor(this.init(), signal);
+    this.assertActive();
+    signal.throwIfAborted();
+    return this.track(
+      lastValueFrom(
+        abortable(
+          this.eventService
+            .find$(
+              filters.map(filter => FilterUtils.normalize(filter)),
+              { signal },
+            )
+            .pipe(
+              concatMap(async event =>
+                !ctx ||
+                (await this.pluginManagerService.canReadEvent(
+                  ctx,
+                  event,
+                  signal,
+                ))
+                  ? event
+                  : undefined,
+              ),
+              filter((event): event is Event => event !== undefined),
+              tap(event => iteratee?.(event)),
+            ),
+          signal,
+        ).pipe(toArray()),
+      ),
+    );
   }
 
-  /** Count distinct stored events matching any filter (NIP-45). */
-  async countEvents(filters: Filter[], pubkey?: string): Promise<number> {
-    if (
-      this.hostname &&
-      filters.some(filter => FilterUtils.hasEncryptedDirectMessageKind(filter))
-    ) {
-      throw new Error(
-        'restricted: encrypted direct message counts are not supported',
-      );
-    }
-
-    if (
-      this.hostname &&
-      !pubkey &&
-      filters.some(filter =>
-        FilterUtils.canIncludeEncryptedDirectMessageKind(filter),
-      )
-    ) {
-      throw new UnauthenticatedError(
-        "restricted: we can't serve counts that may include DMs to unauthenticated users, does your client implement NIP-42?",
-      );
-    }
-
-    const excludedKinds = this.hostname
-      ? [EventKind.ENCRYPTED_DIRECT_MESSAGE]
-      : [];
-    return await this.eventService.count(filters, excludedKinds);
+  /** Trusted server-side count. Client access is controlled by HandleMessagePlugin. */
+  async countEvents(
+    filters: Filter[],
+    options: EventQueryOptions = {},
+  ): Promise<number> {
+    this.assertActive();
+    const signal = options.signal
+      ? AbortSignal.any([this.lifecycle.signal, options.signal])
+      : this.lifecycle.signal;
+    await waitFor(this.init(), signal);
+    this.assertActive();
+    signal.throwIfAborted();
+    return this.track(
+      waitFor(
+        this.eventService.count(
+          filters.map(filter => FilterUtils.normalize(filter)),
+          [],
+          { signal },
+        ),
+        signal,
+      ),
+    );
   }
 
   private getClientContext(client: Client, ip?: string): ClientContext {
+    this.assertActive();
+    if (
+      this.disconnectedClients.has(client) ||
+      client.readyState !== ClientReadyState.OPEN
+    )
+      throw new Error('client is disconnected');
     const ctx = this.clientContexts.get(client);
     if (ctx) return ctx;
 

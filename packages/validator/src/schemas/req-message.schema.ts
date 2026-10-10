@@ -1,4 +1,9 @@
-import { Filter, IncomingReqMessage, MessageType } from '@nostr-relay/common';
+import {
+  Filter,
+  FilterUtils,
+  IncomingReqMessage,
+  MessageType,
+} from '@nostr-relay/common';
 import { z } from 'zod';
 import { RequiredValidatorOptions } from '../types';
 import {
@@ -25,7 +30,6 @@ function createGenericTagFilterValuesSchema({
           message: `must be less than or equal to ${maxTagValueLength} characters`,
         }),
     )
-    .min(1, { message: 'must be greater than or equal to 1 tagValues' })
     .max(maxFilterGenericTagsLength, {
       message: `must be less than or equal to ${maxFilterGenericTagsLength} tagValues`,
     });
@@ -125,7 +129,7 @@ export function createFilterSchema(
     .partial();
 
   if (!enableNipNd) {
-    return schema;
+    return schema.transform(filter => FilterUtils.normalize(filter));
   }
 
   return schema
@@ -184,12 +188,14 @@ export function createFilterSchema(
       ['&Y']: createGenericTagFilterValuesSchema(options),
       ['&Z']: createGenericTagFilterValuesSchema(options),
     })
-    .partial();
+    .partial()
+    .transform(filter => FilterUtils.normalize(filter));
 }
 
 export function createReqMessageSchema(
   options: Pick<
     RequiredValidatorOptions,
+    | 'maxFiltersPerRequest'
     | 'maxSubscriptionIdLength'
     | 'maxFilterIdsLength'
     | 'maxFilterAuthorsLength'
@@ -202,5 +208,8 @@ export function createReqMessageSchema(
 ): z.ZodType<IncomingReqMessage> {
   return z
     .tuple([z.literal(MessageType.REQ), createSubscriptionIdSchema(options)])
-    .rest(createFilterSchema(options));
+    .rest(createFilterSchema(options))
+    .refine(message => message.length - 2 <= options.maxFiltersPerRequest, {
+      message: 'too many filters',
+    });
 }
