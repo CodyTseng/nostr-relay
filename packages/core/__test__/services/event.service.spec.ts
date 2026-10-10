@@ -1,12 +1,4 @@
-import {
-  EMPTY,
-  firstValueFrom,
-  from,
-  interval,
-  lastValueFrom,
-  map,
-  take,
-} from 'rxjs';
+import { from } from 'rxjs';
 import {
   ConsoleLoggerService,
   Event,
@@ -49,9 +41,6 @@ describe('eventService', () => {
       subscriptionService,
       pluginManagerService,
       new ConsoleLoggerService(),
-      {
-        filterResultCacheTtl: 0,
-      },
     );
   });
 
@@ -90,57 +79,13 @@ describe('eventService', () => {
       );
     });
 
-    it('should use cache', async () => {
-      const eventServiceWithCache = new EventService(
-        eventRepository,
-        subscriptionService,
-        pluginManagerService,
-        new ConsoleLoggerService(),
-      );
-      const filters = [{}, {}] as Filter[];
-      const events = [{ id: 'a' }, { id: 'b' }, { id: 'c' }] as Event[];
-
-      const events$ = interval(10).pipe(
-        take(events.length),
-        map(i => events[i]),
-      );
-      const fakeFind$ = jest
+    it('queries the repository on each request without framework caching', async () => {
+      const find = jest
         .spyOn(eventRepository, 'find$')
-        .mockReturnValue(events$);
-
-      expect(await toPromise(eventServiceWithCache.find$(filters))).toEqual(
-        events,
-      );
-
-      await firstValueFrom(events$);
-      expect(await toPromise(eventServiceWithCache.find$(filters))).toEqual(
-        events,
-      );
-
-      await lastValueFrom(events$);
-      expect(await toPromise(eventServiceWithCache.find$(filters))).toEqual(
-        events,
-      );
-      expect(fakeFind$).toHaveBeenCalledTimes(1);
-    });
-
-    it('should return empty array if no match', async () => {
-      const eventServiceWithCache = new EventService(
-        eventRepository,
-        subscriptionService,
-        pluginManagerService,
-        new ConsoleLoggerService(),
-      );
-      const filters = [{}, {}] as Filter[];
-
-      const fakeFind$ = jest
-        .spyOn(eventRepository, 'find$')
-        .mockReturnValue(EMPTY);
-
-      expect(await toPromise(eventServiceWithCache.find$(filters))).toEqual([]);
-      await new Promise(resolve => setTimeout(resolve, 10));
-      expect(await toPromise(eventServiceWithCache.find$(filters))).toEqual([]);
-      expect(fakeFind$).toHaveBeenCalledTimes(1);
+        .mockReturnValue(from([{ id: 'a' } as Event]));
+      await toPromise(eventService.find$([{}]));
+      await toPromise(eventService.find$([{}]));
+      expect(find).toHaveBeenCalledTimes(2);
     });
   });
 
@@ -150,7 +95,7 @@ describe('eventService', () => {
       jest.spyOn(eventRepository, 'count').mockResolvedValue(2);
 
       expect(await eventService.count(filters)).toBe(2);
-      expect(eventRepository.count).toHaveBeenCalledWith(filters, []);
+      expect(eventRepository.count).toHaveBeenCalledWith(filters, [], {});
     });
 
     it('should skip search filters when the repository does not support search', async () => {
@@ -160,7 +105,11 @@ describe('eventService', () => {
       expect(
         await eventService.count([{ search: 'nostr' }, supportedFilter]),
       ).toBe(1);
-      expect(eventRepository.count).toHaveBeenCalledWith([supportedFilter], []);
+      expect(eventRepository.count).toHaveBeenCalledWith(
+        [supportedFilter],
+        [],
+        {},
+      );
     });
   });
 
@@ -177,6 +126,7 @@ describe('eventService', () => {
     });
 
     it('should return duplicate message if event exists', async () => {
+      jest.spyOn(EventUtils, 'validate').mockReturnValue(undefined);
       const event = { id: 'a' } as Event;
 
       jest.spyOn(eventRepository, 'findOne').mockResolvedValue(event);
@@ -291,6 +241,59 @@ describe('eventService', () => {
       expect(spyLoggerError).toHaveBeenCalled();
     });
 
+    it('allows event caching in a plugin only after validation and guards', async () => {
+      const event = { id: 'a', kind: EventKind.TEXT_NOTE } as Event;
+      const cache = new Map<string, Promise<{ success: boolean }>>();
+      const handleEvent = jest.fn((candidate, next) => {
+        if (!cache.has(candidate.id)) cache.set(candidate.id, next());
+        return cache.get(candidate.id)!;
+      });
+      pluginManagerService.register({ handleEvent });
+      jest
+        .spyOn(EventUtils, 'validate')
+        .mockReturnValueOnce('invalid: forged event')
+        .mockReturnValue(undefined);
+      jest.spyOn(eventRepository, 'findOne').mockResolvedValue(null);
+      jest
+        .spyOn(eventRepository, 'upsert')
+        .mockResolvedValue({ isDuplicate: false });
+      expect(await eventService.handleEvent(event)).toEqual({
+        success: false,
+        message: 'invalid: forged event',
+      });
+      expect(handleEvent).not.toHaveBeenCalled();
+      expect(await eventService.handleEvent(event)).toEqual({ success: true });
+      expect(await eventService.handleEvent(event)).toEqual({ success: true });
+      expect(eventRepository.upsert).toHaveBeenCalledTimes(1);
+      jest
+        .spyOn(pluginManagerService, 'beforeHandleEvent')
+        .mockResolvedValue({ canHandle: false, message: 'blocked' });
+      expect(await eventService.handleEvent(event)).toEqual({
+        success: false,
+        message: 'blocked',
+      });
+      expect(handleEvent).toHaveBeenCalledTimes(2);
+    });
+
+    it('publishes accepted events once globally, independently of recipient count', async () => {
+      const event = { id: 'a', kind: EventKind.TEXT_NOTE } as Event;
+      jest.spyOn(EventUtils, 'validate').mockReturnValue(undefined);
+      jest.spyOn(eventRepository, 'findOne').mockResolvedValue(null);
+      jest
+        .spyOn(eventRepository, 'upsert')
+        .mockResolvedValueOnce({ isDuplicate: false })
+        .mockResolvedValueOnce({ isDuplicate: true });
+      const publishEvent = jest.fn(async (_event, next) => {
+        await next();
+      });
+      pluginManagerService.register({ publishEvent });
+      await eventService.handleEvent(event);
+      await eventService.handleEvent(event);
+      expect(publishEvent).toHaveBeenCalledTimes(1);
+      expect(publishEvent).toHaveBeenCalledWith(event, expect.any(Function));
+      expect(subscriptionService.broadcast).toHaveBeenCalledTimes(1);
+    });
+
     it('should return directly if beforeHandleEvent return false', async () => {
       jest.spyOn(pluginManagerService, 'beforeHandleEvent').mockResolvedValue({
         canHandle: false,
@@ -305,21 +308,9 @@ describe('eventService', () => {
   });
 
   describe('destroy', () => {
-    it('should destroy successfully', async () => {
-      const eventServiceWithCache = new EventService(
-        eventRepository,
-        subscriptionService,
-        pluginManagerService,
-        new ConsoleLoggerService(),
-      );
-
-      const mockFindLazyCacheClear = jest
-        .spyOn(eventServiceWithCache['findLazyCache']!, 'clear')
-        .mockImplementation();
-
-      await eventServiceWithCache.destroy();
-
-      expect(mockFindLazyCacheClear).toHaveBeenCalled();
+    it('closes the repository', async () => {
+      await eventService.destroy();
+      expect(eventRepository.destroy).toHaveBeenCalledTimes(1);
     });
   });
 });

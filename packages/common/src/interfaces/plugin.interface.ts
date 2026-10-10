@@ -1,7 +1,16 @@
 import { ClientContext } from '../client-context';
-import { Event } from './event.interface';
+import { Event, HandleEventResult } from './event.interface';
 import { HandleMessageResult } from './handle-result.interface';
 import { IncomingMessage } from './message.interface';
+import { Observable } from 'rxjs';
+import { EventQueryOptions } from './event-repository.interface';
+import { Filter } from './filter.interface';
+
+/** Plugins own their resources; initialization and cleanup are called once. */
+export interface PluginLifecycle {
+  init?(signal: AbortSignal): void | Promise<void>;
+  destroy?(signal: AbortSignal): void | Promise<void>;
+}
 
 /**
  * The result of the `beforeHandleEvent` method.
@@ -18,11 +27,39 @@ export type BeforeHandleEventResult = {
   message?: string;
 };
 
-export type NostrRelayPlugin =
-  | HandleMessagePlugin
-  | BeforeHandleEventPlugin
-  | CanReadEventPlugin
-  | BroadcastPlugin;
+export type NostrRelayPlugin = PluginLifecycle &
+  (
+    | PluginLifecycle
+    | HandleMessagePlugin
+    | BeforeHandleEventPlugin
+    | CanReadEventPlugin
+    | BroadcastPlugin
+    | HandleEventPlugin
+    | FindEventsPlugin
+    | PublishEventPlugin
+  );
+
+/** Wrap validated event processing, e.g. for application-owned caching. */
+export interface HandleEventPlugin {
+  handleEvent(
+    event: Event,
+    next: () => Promise<HandleEventResult>,
+  ): Promise<HandleEventResult>;
+}
+
+/** Wrap raw repository queries; client read guards always run afterwards. */
+export interface FindEventsPlugin {
+  findEvents(
+    filter: Filter,
+    options: EventQueryOptions,
+    next: () => Observable<Event>,
+  ): Observable<Event>;
+}
+
+/** Once per newly accepted event, before per-client delivery. */
+export interface PublishEventPlugin {
+  publishEvent(event: Event, next: () => Promise<void>): Promise<void>;
+}
 
 /**
  * The plugin implement this interface will be called when a new message is received from a client.
@@ -125,5 +162,9 @@ export interface CanReadEventPlugin {
    * @param ctx The receiving client's context
    * @param event The event to read
    */
-  canReadEvent(ctx: ClientContext, event: Event): boolean | Promise<boolean>;
+  canReadEvent(
+    ctx: ClientContext,
+    event: Event,
+    signal?: AbortSignal,
+  ): boolean | Promise<boolean>;
 }

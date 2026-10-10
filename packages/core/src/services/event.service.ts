@@ -5,63 +5,63 @@ import {
   EventType,
   EventUtils,
   Filter,
+  FilterUtils,
+  EventQueryOptions,
+  abortable,
   HandleEventResult,
   Logger,
 } from '@nostr-relay/common';
-import { distinct, EMPTY, from, merge, Observable, shareReplay } from 'rxjs';
-import { LazyCache, md5 } from '../utils';
+import { defer, distinct, EMPTY, merge, Observable } from 'rxjs';
 import { PluginManagerService } from './plugin-manager.service';
 import { SubscriptionService } from './subscription.service';
-
-type EventServiceOptions = {
-  filterResultCacheTtl?: number;
-};
 
 export class EventService {
   private readonly eventRepository: EventRepository;
   private readonly subscriptionService: SubscriptionService;
   private readonly pluginManagerService: PluginManagerService;
   private readonly logger: Logger;
-  private readonly findLazyCache?:
-    | LazyCache<string, Observable<Event> | Event[]>
-    | undefined;
-
   constructor(
     eventRepository: EventRepository,
     subscriptionService: SubscriptionService,
     pluginManagerService: PluginManagerService,
     logger: Logger,
-    options: EventServiceOptions = {},
   ) {
     this.eventRepository = eventRepository;
     this.subscriptionService = subscriptionService;
     this.pluginManagerService = pluginManagerService;
     this.logger = logger;
-
-    const filterResultCacheTtl = options.filterResultCacheTtl ?? 1000;
-    if (filterResultCacheTtl > 0) {
-      this.findLazyCache = new LazyCache({
-        max: 1000,
-        ttl: filterResultCacheTtl,
-      });
-    }
   }
 
-  find$(filters: Filter[]): Observable<Event> {
-    return merge(...filters.map(filter => this.findByFilter$(filter))).pipe(
-      distinct(event => event.id),
+  find$(filters: Filter[], options: EventQueryOptions = {}): Observable<Event> {
+    return abortable(
+      merge(
+        ...filters.map(filter =>
+          this.findByFilter$(FilterUtils.normalize(filter), options),
+        ),
+      ).pipe(distinct(event => event.id)),
+      options.signal,
     );
   }
 
   async count(
     filters: Filter[],
     excludedKinds: number[] = [],
+    options: EventQueryOptions = {},
   ): Promise<number> {
-    const supportedFilters = filters.filter(
-      filter =>
-        filter.search === undefined || this.eventRepository.isSearchSupported(),
+    const supportedFilters = filters
+      .map(filter => FilterUtils.normalize(filter))
+      .filter(
+        filter =>
+          !FilterUtils.isMatchNone(filter) &&
+          (filter.search === undefined ||
+            this.eventRepository.isSearchSupported()),
+      );
+    if (!supportedFilters.length) return 0;
+    return await this.eventRepository.count(
+      supportedFilters,
+      excludedKinds,
+      options,
     );
-    return await this.eventRepository.count(supportedFilters, excludedKinds);
   }
 
   async handleEvent(event: Event): Promise<HandleEventResult> {
@@ -78,14 +78,6 @@ export class EventService {
       return { success: true };
     }
 
-    const exists = await this.checkEventExists(event);
-    if (exists) {
-      return {
-        success: true,
-        message: 'duplicate: the event already exists',
-      };
-    }
-
     const validateErrorMsg = EventUtils.validate(event);
     if (validateErrorMsg) {
       return {
@@ -95,11 +87,20 @@ export class EventService {
     }
 
     try {
-      const eventType = EventUtils.getType(event.kind);
-      if (eventType === EventType.EPHEMERAL) {
-        return await this.handleEphemeralEvent(event);
-      }
-      return await this.handleRegularEvent(event);
+      return await this.pluginManagerService.handleEvent(event, async () => {
+        const exists = await this.checkEventExists(event);
+        if (exists) {
+          return {
+            success: true,
+            message: 'duplicate: the event already exists',
+          };
+        }
+
+        const eventType = EventUtils.getType(event.kind);
+        if (eventType === EventType.EPHEMERAL)
+          return this.handleEphemeralEvent(event);
+        return this.handleRegularEvent(event);
+      });
     } catch (error) {
       if (error instanceof Error) {
         this.logger.error(
@@ -122,39 +123,21 @@ export class EventService {
     }
   }
 
-  private findByFilter$(filter: Filter): Observable<Event> {
-    const callback = (): Observable<Event> => {
-      if (
-        filter.search !== undefined &&
-        !this.eventRepository.isSearchSupported()
-      ) {
-        return EMPTY;
-      }
-      const share$ = this.eventRepository
-        .find$(filter)
-        .pipe(shareReplay({ refCount: true }));
-
-      setImmediate(() => {
-        const events: Event[] = [];
-        share$.subscribe({
-          next: event => events.push(event),
-          complete: () => {
-            this.findLazyCache?.set(md5(JSON.stringify(filter)), events);
-          },
-        });
-      });
-
-      return share$;
-    };
-
-    if (this.findLazyCache) {
-      const cache = this.findLazyCache.get(
-        md5(JSON.stringify(filter)),
-        callback,
-      );
-      return cache instanceof Observable ? cache : from(cache);
-    }
-    return callback();
+  private findByFilter$(
+    filter: Filter,
+    options: EventQueryOptions,
+  ): Observable<Event> {
+    if (
+      FilterUtils.isMatchNone(filter) ||
+      (filter.search !== undefined && !this.eventRepository.isSearchSupported())
+    )
+      return EMPTY;
+    return abortable(
+      this.pluginManagerService.findEvents(filter, options, () =>
+        defer(() => this.eventRepository.find$(filter, options)),
+      ),
+      options.signal,
+    );
   }
 
   private async handleEphemeralEvent(event: Event): Promise<HandleEventResult> {
@@ -191,10 +174,12 @@ export class EventService {
   }
 
   private async broadcast(event: Event): Promise<void> {
-    return this.subscriptionService.broadcast(event);
+    return this.pluginManagerService.publishEvent(event, candidate =>
+      this.subscriptionService.broadcast(candidate),
+    );
   }
 
   async destroy(): Promise<void> {
-    this.findLazyCache?.clear();
+    await this.eventRepository.destroy();
   }
 }

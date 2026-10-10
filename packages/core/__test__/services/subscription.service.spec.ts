@@ -42,7 +42,7 @@ describe('SubscriptionService', () => {
 
       subscriptionService.subscribe(ctx, subscriptionId, filters);
 
-      expect(ctx.subscriptions.get(subscriptionId)).toEqual(filters);
+      expect(ctx.subscriptions.get(subscriptionId)?.filters).toEqual(filters);
     });
 
     it('should add subscription to existing client', () => {
@@ -54,8 +54,8 @@ describe('SubscriptionService', () => {
       subscriptionService.subscribe(ctx, subscriptionIdA, filtersA);
       subscriptionService.subscribe(ctx, subscriptionIdB, filtersB);
 
-      expect(ctx.subscriptions.get(subscriptionIdA)).toEqual(filtersA);
-      expect(ctx.subscriptions.get(subscriptionIdB)).toEqual(filtersB);
+      expect(ctx.subscriptions.get(subscriptionIdA)?.filters).toEqual(filtersA);
+      expect(ctx.subscriptions.get(subscriptionIdB)?.filters).toEqual(filtersB);
     });
   });
 
@@ -73,8 +73,8 @@ describe('SubscriptionService', () => {
         subscriptionService.unsubscribe(ctx, subscriptionIdA),
       ).toBeTruthy();
 
-      expect(ctx.subscriptions.get(subscriptionIdA)).toBeUndefined();
-      expect(ctx.subscriptions.get(subscriptionIdB)).toEqual(filtersB);
+      expect(ctx.subscriptions.get(subscriptionIdA)?.filters).toBeUndefined();
+      expect(ctx.subscriptions.get(subscriptionIdB)?.filters).toEqual(filtersB);
     });
 
     it('should return false if client is not found', () => {
@@ -255,8 +255,8 @@ describe('SubscriptionService', () => {
 
       jest.spyOn(EventUtils, 'isMatchingFilter').mockReturnValue(true);
 
-      client.readyState = ClientReadyState.CLOSED;
       subscriptionService.subscribe(ctx, subscriptionId, filters);
+      client.readyState = ClientReadyState.CLOSED;
       await subscriptionService.broadcast(event);
 
       expect(client.send).not.toHaveBeenCalled();

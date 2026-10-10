@@ -9,5 +9,8 @@ export function createCountMessageSchema(
 ): z.ZodType<IncomingCountMessage> {
   return z
     .tuple([z.literal(MessageType.COUNT), createSubscriptionIdSchema(options)])
-    .rest(createFilterSchema(options) as z.ZodType<Filter>);
+    .rest(createFilterSchema(options) as z.ZodType<Filter>)
+    .refine(message => message.length - 2 <= options.maxFiltersPerRequest, {
+      message: 'too many filters',
+    });
 }

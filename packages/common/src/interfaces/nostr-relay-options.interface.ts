@@ -29,12 +29,18 @@ export type NostrRelayOptions = {
    * Maximum number of subscriptions per client. `Default: 20`
    */
   maxSubscriptionsPerClient?: number;
+  /** Maximum filters per client REQ or COUNT. `Default: 20` */
+  maxFiltersPerRequest?: number;
   /**
-   * TTL for filter result cache in milliseconds. `Default: 1000`
+   * Maximum live events buffered per subscription during its historical query. `Default: 1000`
    */
-  filterResultCacheTtl?: number;
+  maxPendingEventsPerSubscription?: number;
   /**
-   * TTL for event handling result cache in milliseconds. `Default: 600000`
+   * Deadline for historical queries in milliseconds. `Default: 30000`
    */
-  eventHandlingResultCacheTtl?: number;
+  queryTimeoutMs?: number;
+  /** Deadline for each plugin initialization or cleanup in milliseconds. `Default: 10000` */
+  pluginLifecycleTimeoutMs?: number;
+  /** Whether relay.destroy() closes its repository. `Default: true` */
+  destroyRepository?: boolean;
 };

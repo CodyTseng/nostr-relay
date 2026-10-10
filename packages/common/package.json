@@ -29,7 +29,6 @@
   },
   "dependencies": {
     "@noble/curves": "^1.6.0",
-    "lru-cache": "^11.0.1",
     "rxjs": "^7.8.1"
   }
 }

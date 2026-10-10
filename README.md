@@ -29,6 +29,8 @@ async function bootstrap() {
   await eventRepository.init();
   const relay = new NostrRelay(eventRepository);
   const validator = new Validator();
+  // Register plugins before initializing the relay. Repository initialization remains explicit.
+  await relay.init();
 
   wss.on('connection', ws => {
     // Handle a new client connection. This method should be called when a new client connects to the Nostr Relay server.
@@ -171,7 +173,53 @@ class BroadcastGuardPlugin implements BroadcastPlugin {
 relay.register(new BroadcastGuardPlugin());
 ```
 
-### More to come...
+### Event processing, queries, and publication
+
+The framework does not cache event processing results or query results. Cache lifetime, size, invalidation, concurrent requests, and failed-result handling belong to application plugins.
+
+- `HandleEventPlugin.handleEvent(event, next)` wraps event processing after validation and `beforeHandleEvent` guards. A caching plugin should only cache results for verified events and define how failures and policy changes invalidate them.
+- `FindEventsPlugin.findEvents(filter, options, next)` wraps a raw repository query and returns an `Observable<Event>`. Filters are normalized before this hook; read guards run after it, including when the plugin returns cached events. The plugin must respect `options.signal` and manage the cancellation semantics of shared queries.
+- `PublishEventPlugin.publishEvent(event, next)` runs once for a newly accepted event. This is the hook for forwarding accepted events to Redis or another relay. Calling `next()` continues local delivery. Direct `relay.broadcast(event)` only performs local delivery, so externally received events can be delivered without publishing them again.
+
+### Subscription lifecycle
+
+`ctx.subscriptions` is a `Map<string, ClientSubscription>`. Each subscription has its own normalized `filters`, cancellation `signal`, and state: `querying`, `draining`, `live`, or `closed`. Reusing an ID creates a new subscription instance and cancels the previous one.
+
+A subscription is registered before historical queries begin. Matching live events received during history are buffered; historical EVENT messages are followed by EOSE, then buffered live events are drained with fresh read checks. Events already delivered during history are deduplicated during this transition. CLOSE, replacement, disconnect, and destruction cancel pending queries and prevent an old generation from delivering messages to its replacement.
+
+When a new subscription ID reaches `maxSubscriptionsPerClient`, the oldest active subscription is cancelled and receives CLOSED before the new subscription is admitted. Replacing an existing ID does not evict another subscription or emit CLOSED; the replacement starts a new generation and moves to the end of the age order. Catch-up buffer overflow and query timeout close only the affected subscription. Transport sockets remain owned by the application.
+
+### Filter semantics
+
+`FilterUtils.normalize()` is shared by validators, the framework, and the SQLite adapter. It clones filters, deduplicates array values, removes undefined fields, and trims search strings.
+
+- Empty `ids`, `authors`, `kinds`, or `#tag` arrays match no events. Empty `&tag` arrays impose no requirements.
+- Values within `#tag` are OR conditions; all values within `&tag` are required. Different fields are combined with AND. The existing rule excluding AND values from the same tag's OR values is preserved.
+- `since` and `until` are inclusive, including zero. A reversed time range matches no events.
+- `limit` applies to historical queries; COUNT ignores it and realtime delivery does not use it.
+- Nonempty `search` remains historical-only; whitespace-only search is treated as absent. Unsupported search queries return no results.
+
+SQLite applies every tag condition, including three or more names, and limits distinct events. A filter contract test checks that SQLite queries, COUNT, and live matching agree for filters supported by all three paths.
+
+### Resource ownership and plugin lifecycle
+
+Register all plugins before `await relay.init()`. Initialization also runs lazily before asynchronous relay operations. A plugin can provide `init(signal)` and `destroy(signal)` to own connections, caches, timers, and other resources. Initialization runs in registration order; cleanup runs in reverse order, once per plugin. Initialization failures roll back plugin resources. Cleanup continues after individual failures and reports collected errors.
+
+`relay.destroy()` is idempotent. It cancels client and trusted query work, waits for admitted operations, destroys plugins, and closes the repository by default. Set `destroyRepository: false` when a repository is shared or its lifetime belongs to the application. Calls after destruction are rejected. Adapters receive optional query cancellation signals and should cancel underlying I/O when supported; unsubscribing or timing out cannot forcibly terminate third-party code that ignores cancellation.
+
+| Option | Default | Behavior |
+| --- | --- | --- |
+| `maxSubscriptionsPerClient` | 20 | Close the oldest subscription and notify it before admitting a new ID |
+| `maxFiltersPerRequest` | 20 | Bound filters in client REQ and COUNT |
+| `maxPendingEventsPerSubscription` | 1000 | Bound unique live events buffered during history |
+| `queryTimeoutMs` | 30000 | Deadline for historical querying and catch-up |
+| `pluginLifecycleTimeoutMs` | 10000 | Deadline per plugin initialization or cleanup |
+| `destroyRepository` | true | Close the repository when destroying the relay |
+
+Set the validator's `maxFiltersPerRequest` consistently with the relay when changing this limit.
+
+Migration notes: `filterResultCacheTtl` and `eventHandlingResultCacheTtl` and the internal `LazyCache` utility are removed. Subscription map values are subscription objects; access their `.filters` rather than treating the value as a filter array. `EventRepository.find()` and `count()` accept optional query options with a signal. `countEvents(filters, options)` replaces the unused public-key parameter. Store caches in plugins and release them in `destroy()`.
+
 
 ## Donate
 

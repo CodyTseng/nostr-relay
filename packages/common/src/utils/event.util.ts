@@ -2,6 +2,7 @@ import { EventKind, EventType, TagName } from '../constants';
 import { Event, Filter, Tag } from '../interfaces';
 import { schnorrVerify, sha256 } from './crypto.util';
 import { getTimestampInSeconds } from './time.util';
+import { FilterUtils } from './filter.util';
 
 export class EventUtils {
   static getType(kind: number): EventType {
@@ -193,6 +194,9 @@ export class EventUtils {
   }
 
   static isMatchingFilter(event: Event, filter: Filter): boolean {
+    filter = FilterUtils.normalize(filter);
+    if (FilterUtils.isMatchNone(filter) || filter.search !== undefined)
+      return false;
     if (filter.ids && !filter.ids.some(id => id === event.id)) {
       return false;
     }
@@ -208,11 +212,11 @@ export class EventUtils {
       return false;
     }
 
-    if (filter.since && event.created_at < filter.since) {
+    if (filter.since !== undefined && event.created_at < filter.since) {
       return false;
     }
 
-    if (filter.until && event.created_at > filter.until) {
+    if (filter.until !== undefined && event.created_at > filter.until) {
       return false;
     }
 

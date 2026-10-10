@@ -26,7 +26,9 @@ export class Validator {
     const defaultOptions = this.defaultOptions(options);
     this.incomingMessageSchema = createIncomingMessageSchema(defaultOptions);
     this.filterSchema = createFilterSchema(defaultOptions);
-    this.filtersSchema = z.array(this.filterSchema);
+    this.filtersSchema = z
+      .array(this.filterSchema)
+      .max(defaultOptions.maxFiltersPerRequest);
     this.eventSchema = createEventSchema(defaultOptions);
   }
 
@@ -129,6 +131,7 @@ export class Validator {
 
   private defaultOptions(options: ValidatorOptions): RequiredValidatorOptions {
     return {
+      maxFiltersPerRequest: 20,
       maxTagValueLength: 1024,
       maxNumberOfTags: 2000,
       maxContentLength: 100 * 1024,

@@ -1,8 +1,7 @@
 import { randomUUID } from 'crypto';
-import { LRUCache } from 'lru-cache';
+import { ClientSubscription } from './client-subscription';
 import { ClientReadyState } from './constants';
 import { Client } from './interfaces/client.interface';
-import { Filter } from './interfaces/filter.interface';
 import { OutgoingMessage } from './interfaces/message.interface';
 
 /**
@@ -26,7 +25,13 @@ export class ClientContext {
   /**
    * Subscriptions of the client. The key is the subscription ID. The value is the filters.
    */
-  readonly subscriptions: LRUCache<string, Filter[]>;
+  readonly subscriptions = new Map<string, ClientSubscription>();
+  readonly maxSubscriptionsPerClient: number;
+  private readonly controller = new AbortController();
+
+  get signal(): AbortSignal {
+    return this.controller.signal;
+  }
 
   /**
    * Public key of the client. Will be set after the client sends an AUTH message.
@@ -49,16 +54,22 @@ export class ClientContext {
     options: ClientContextOptions = {},
   ) {
     this.id = randomUUID();
-    this.subscriptions = new LRUCache<string, Filter[]>({
-      max: options.maxSubscriptionsPerClient ?? 20,
-    });
+    this.maxSubscriptionsPerClient = options.maxSubscriptionsPerClient ?? 20;
+    if (
+      !Number.isInteger(this.maxSubscriptionsPerClient) ||
+      this.maxSubscriptionsPerClient < 1
+    ) {
+      throw new Error('maxSubscriptionsPerClient must be a positive integer');
+    }
   }
 
   /**
    * Whether the client is open. Only can send messages when the client is open.
    */
   get isOpen(): boolean {
-    return this.client.readyState === ClientReadyState.OPEN;
+    return (
+      !this.signal.aborted && this.client.readyState === ClientReadyState.OPEN
+    );
   }
 
   /**
@@ -70,5 +81,12 @@ export class ClientContext {
     if (this.isOpen) {
       this.client.send(JSON.stringify(message));
     }
+  }
+
+  dispose(): void {
+    this.controller.abort();
+    for (const subscription of this.subscriptions.values())
+      subscription.close();
+    this.subscriptions.clear();
   }
 }

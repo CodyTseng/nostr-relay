@@ -92,7 +92,7 @@ describe('NostrRelay', () => {
       expect(client.send).toHaveBeenCalledWith(JSON.stringify(outgoingMessage));
     });
 
-    it('should cache handle result', async () => {
+    it('does not cache handle results in the framework', async () => {
       const event = { id: 'eventId' } as Event;
       const outgoingMessage: OutgoingOkMessage = [
         MessageType.OK,
@@ -111,7 +111,7 @@ describe('NostrRelay', () => {
         nostrRelay.handleMessage(client, [MessageType.EVENT, event]),
       ]);
 
-      expect(mockHandleEvent).toHaveBeenCalledTimes(1);
+      expect(mockHandleEvent).toHaveBeenCalledTimes(2);
       expect(client.send).toHaveBeenCalledTimes(2);
       expect(client.send).toHaveBeenNthCalledWith(1, outgoingMessageStr);
       expect(client.send).toHaveBeenNthCalledWith(2, outgoingMessageStr);
@@ -120,7 +120,6 @@ describe('NostrRelay', () => {
     it('should not cache handle result', async () => {
       const nostrRelayWithoutCache = new NostrRelay({} as EventRepository, {
         hostname: 'test',
-        eventHandlingResultCacheTtl: 0,
       });
       const event = { id: 'eventId' } as Event;
       const outgoingMessage: OutgoingOkMessage = [
@@ -191,8 +190,18 @@ describe('NostrRelay', () => {
         JSON.stringify([MessageType.EOSE, 'subscription']),
       );
       expect(client.send).toHaveBeenCalledTimes(2);
-      expect(canReadEvent).toHaveBeenNthCalledWith(1, ctx, denied);
-      expect(canReadEvent).toHaveBeenNthCalledWith(2, ctx, allowed);
+      expect(canReadEvent).toHaveBeenNthCalledWith(
+        1,
+        ctx,
+        denied,
+        expect.any(AbortSignal),
+      );
+      expect(canReadEvent).toHaveBeenNthCalledWith(
+        2,
+        ctx,
+        allowed,
+        expect.any(AbortSignal),
+      );
 
       jest.mocked(client.send).mockClear();
       await nostrRelay.broadcast(denied);
@@ -314,9 +323,10 @@ describe('NostrRelay', () => {
         { id: 'c', kind: 4 },
       ] as Event[];
 
-      const mockSubscribe = jest
-        .spyOn(nostrRelay['subscriptionService'], 'subscribe')
-        .mockImplementation();
+      const mockSubscribe = jest.spyOn(
+        nostrRelay['subscriptionService'],
+        'subscribe',
+      );
       const mockFind = jest
         .spyOn(nostrRelay['eventService'], 'find$')
         .mockReturnValue(from(events));
@@ -331,8 +341,15 @@ describe('NostrRelay', () => {
         messageType: MessageType.REQ,
         events,
       });
-      expect(mockSubscribe).toHaveBeenCalledWith(ctx, subscriptionId, filters);
-      expect(mockFind).toHaveBeenCalledWith(filters);
+      expect(mockSubscribe).toHaveBeenCalledWith(
+        ctx,
+        subscriptionId,
+        filters,
+        true,
+      );
+      expect(mockFind).toHaveBeenCalledWith(filters, {
+        signal: expect.any(AbortSignal),
+      });
       expect(client.send).toHaveBeenNthCalledWith(
         1,
         JSON.stringify([MessageType.EVENT, subscriptionId, events[0]]),
@@ -367,7 +384,7 @@ describe('NostrRelay', () => {
 
       expect(ctx.pubkey).toBeUndefined();
       expect(result).toEqual({ messageType: MessageType.REQ, events });
-      expect(ctx.subscriptions.get(subscriptionId)).toEqual(filters);
+      expect(ctx.subscriptions.get(subscriptionId)?.filters).toEqual(filters);
       expect(client.send).toHaveBeenCalledWith(
         JSON.stringify([MessageType.EVENT, subscriptionId, events[0]]),
       );
@@ -417,9 +434,10 @@ describe('NostrRelay', () => {
       ] as Event[];
       ctx.pubkey = pubkey;
 
-      const mockSubscribe = jest
-        .spyOn(nostrRelay['subscriptionService'], 'subscribe')
-        .mockImplementation();
+      const mockSubscribe = jest.spyOn(
+        nostrRelay['subscriptionService'],
+        'subscribe',
+      );
       const mockFind = jest
         .spyOn(nostrRelay['eventService'], 'find$')
         .mockReturnValue(from(events));
@@ -431,8 +449,15 @@ describe('NostrRelay', () => {
       ]);
 
       expect(result).toEqual({ messageType: MessageType.REQ, events });
-      expect(mockSubscribe).toHaveBeenCalledWith(ctx, subscriptionId, filters);
-      expect(mockFind).toHaveBeenCalledWith(filters);
+      expect(mockSubscribe).toHaveBeenCalledWith(
+        ctx,
+        subscriptionId,
+        filters,
+        true,
+      );
+      expect(mockFind).toHaveBeenCalledWith(filters, {
+        signal: expect.any(AbortSignal),
+      });
       expect(client.send).toHaveBeenNthCalledWith(
         1,
         JSON.stringify([MessageType.EVENT, subscriptionId, events[0]]),
@@ -450,9 +475,10 @@ describe('NostrRelay', () => {
       const events = [{ id: 'a', kind: 4 }] as Event[];
       const ctx = nostrRelayWithoutHostname['getClientContext'](client);
 
-      const mockSubscribe = jest
-        .spyOn(nostrRelayWithoutHostname['subscriptionService'], 'subscribe')
-        .mockImplementation();
+      const mockSubscribe = jest.spyOn(
+        nostrRelayWithoutHostname['subscriptionService'],
+        'subscribe',
+      );
       const mockFind = jest
         .spyOn(nostrRelayWithoutHostname['eventService'], 'find$')
         .mockReturnValue(from(events));
@@ -464,8 +490,15 @@ describe('NostrRelay', () => {
       ]);
 
       expect(result).toEqual({ messageType: MessageType.REQ, events });
-      expect(mockSubscribe).toHaveBeenCalledWith(ctx, subscriptionId, filters);
-      expect(mockFind).toHaveBeenCalledWith(filters);
+      expect(mockSubscribe).toHaveBeenCalledWith(
+        ctx,
+        subscriptionId,
+        filters,
+        true,
+      );
+      expect(mockFind).toHaveBeenCalledWith(filters, {
+        signal: expect.any(AbortSignal),
+      });
       expect(client.send).toHaveBeenNthCalledWith(
         1,
         JSON.stringify([MessageType.EVENT, subscriptionId, events[0]]),
@@ -478,14 +511,17 @@ describe('NostrRelay', () => {
   });
 
   describe('close', () => {
-    it('should handle close successfully', () => {
+    it('should handle close successfully', async () => {
       const subscriptionId: SubscriptionId = 'subscriptionId';
       const mockUnsubscribe = jest
         .spyOn(nostrRelay['subscriptionService'], 'unsubscribe')
         .mockReturnValue(true);
       const ctx = nostrRelay['getClientContext'](client);
 
-      nostrRelay.handleMessage(client, [MessageType.CLOSE, subscriptionId]);
+      await nostrRelay.handleMessage(client, [
+        MessageType.CLOSE,
+        subscriptionId,
+      ]);
 
       expect(mockUnsubscribe).toHaveBeenCalledWith(ctx, subscriptionId);
     });
@@ -513,7 +549,9 @@ describe('NostrRelay', () => {
       ]);
 
       expect(result).toEqual({ messageType: MessageType.COUNT, count: 3 });
-      expect(mockCount).toHaveBeenCalledWith(filters);
+      expect(mockCount).toHaveBeenCalledWith(filters, [], {
+        signal: expect.any(AbortSignal),
+      });
       expect(mockSubscribe).not.toHaveBeenCalled();
       expect(client.send).toHaveBeenCalledTimes(1);
       expect(client.send).toHaveBeenCalledWith(
@@ -561,7 +599,9 @@ describe('NostrRelay', () => {
         ]);
 
         expect(result).toEqual({ messageType: MessageType.COUNT, count: 2 });
-        expect(mockCount).toHaveBeenCalledWith([filter]);
+        expect(mockCount).toHaveBeenCalledWith([filter], [], {
+          signal: expect.any(AbortSignal),
+        });
         expect(client.send).toHaveBeenCalledTimes(1);
         expect(client.send).toHaveBeenCalledWith(
           JSON.stringify([MessageType.COUNT, 'queryId', { count: 2 }]),
@@ -618,7 +658,7 @@ describe('NostrRelay', () => {
       jest.spyOn(EventUtils, 'getAuthor').mockReturnValue(pubkey);
 
       nostrRelay.handleConnection(client);
-      nostrRelay.handleMessage(client, [MessageType.AUTH, signedEvent]);
+      await nostrRelay.handleMessage(client, [MessageType.AUTH, signedEvent]);
 
       expect(client.send).toHaveBeenCalledWith(
         JSON.stringify([MessageType.OK, signedEvent.id, true, '']),
@@ -632,7 +672,7 @@ describe('NostrRelay', () => {
       jest.spyOn(EventUtils, 'isSignedEventValid').mockReturnValue('invalid');
 
       nostrRelay.handleConnection(client);
-      nostrRelay.handleMessage(client, [MessageType.AUTH, signedEvent]);
+      await nostrRelay.handleMessage(client, [MessageType.AUTH, signedEvent]);
 
       expect(client.send).toHaveBeenCalledWith(
         JSON.stringify([MessageType.OK, signedEvent.id, false, 'invalid']),
@@ -643,7 +683,7 @@ describe('NostrRelay', () => {
       const nostrRelayWithoutHostname = new NostrRelay({} as EventRepository);
       const signedEvent = { id: 'eventId' } as Event;
 
-      nostrRelayWithoutHostname.handleMessage(client, [
+      await nostrRelayWithoutHostname.handleMessage(client, [
         MessageType.AUTH,
         signedEvent,
       ]);
@@ -685,7 +725,7 @@ describe('NostrRelay', () => {
     it('passes the receiving context through plugins on direct broadcasts', async () => {
       nostrRelay.handleConnection(client);
       const ctx = nostrRelay['clientContexts'].get(client)!;
-      ctx.subscriptions.set('subscription', [{}]);
+      nostrRelay['subscriptionService'].subscribe(ctx, 'subscription', [{}]);
       const event: Event = {
         id: 'eventId',
         pubkey: 'author',
@@ -712,7 +752,7 @@ describe('NostrRelay', () => {
     it('should call broadcast on subscriptionService', async () => {
       const mockSubscriptionServiceBroadcast = jest
         .spyOn(nostrRelay['subscriptionService'], 'broadcast')
-        .mockImplementation();
+        .mockResolvedValue(undefined);
       const event = { id: 'eventId' } as Event;
 
       await nostrRelay.broadcast(event);
@@ -723,9 +763,6 @@ describe('NostrRelay', () => {
 
   describe('destroy', () => {
     it('should destroy successfully', async () => {
-      const mockLazyCacheClear = jest
-        .spyOn(nostrRelay['eventHandlingLazyCache']!, 'clear')
-        .mockImplementation();
       const mockEventServiceDestroy = jest
         .spyOn(nostrRelay['eventService'], 'destroy')
         .mockImplementation();
@@ -736,7 +773,6 @@ describe('NostrRelay', () => {
       await nostrRelay.destroy();
 
       expect(nostrRelay['clientContexts'].size).toBe(0);
-      expect(mockLazyCacheClear).toHaveBeenCalled();
       expect(mockEventServiceDestroy).toHaveBeenCalled();
     });
   });

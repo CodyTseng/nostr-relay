@@ -364,7 +364,7 @@ describe('EventUtils', () => {
       ['supports uppercase tag names', { '#T': ['UPPER'] }, true],
       ['keeps values case sensitive', { '#t': ['NOSTR'] }, false],
       ['matches empty tag values', { '#d': [''] }, true],
-      ['ignores empty filters', { '#t': [], '&p': [] }, true],
+      ['empty OR filters match nothing', { '#t': [], '&p': [] }, false],
       ['ignores undefined filters', { '#t': undefined, '&p': undefined }, true],
       ['requires all AND values', { '&t': ['nostr', 'relay'] }, true],
       ['rejects missing AND values', { '&t': ['nostr', 'missing'] }, false],

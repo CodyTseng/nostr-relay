@@ -4,6 +4,8 @@ export type RawData = Buffer | ArrayBuffer | Buffer[] | string | object;
  * Validator options
  */
 export type ValidatorOptions = {
+  /** Maximum filters per REQ or COUNT. `Default: 20` */
+  maxFiltersPerRequest?: number;
   /**
    * maximum length of tag value. `Default: 1024`
    */

@@ -5,6 +5,8 @@ import {
   EventType,
   EventUtils,
   Filter,
+  FilterUtils,
+  EventQueryOptions,
   TagName,
 } from '@nostr-relay/common';
 import * as BetterSqlite3 from 'better-sqlite3';
@@ -177,12 +179,15 @@ export class EventRepositorySqlite extends EventRepository {
             return eventInsertResult;
           }
 
+          await trx
+            .deleteFrom('generic_tags')
+            .where(
+              'event_id',
+              'in',
+              oldEventId ? [event.id, oldEventId] : [event.id],
+            )
+            .execute();
           if (genericTags.length > 0) {
-            await trx
-              .deleteFrom('generic_tags')
-              .where('event_id', '=', event.id)
-              .execute();
-
             await trx
               .insertInto('generic_tags')
               .values(
@@ -242,36 +247,14 @@ export class EventRepositorySqlite extends EventRepository {
     return 0;
   }
 
-  async find(filter: Filter): Promise<Event[]> {
+  async find(
+    filter: Filter,
+    options: EventQueryOptions = {},
+  ): Promise<Event[]> {
+    options.signal?.throwIfAborted();
+    filter = FilterUtils.normalize(filter);
     const limit = this.getLimitFrom(filter);
-    if (limit === 0) return [];
-
-    const genericTagsCollection = this.extractGenericTagsCollectionFrom(filter);
-    if (!filter.ids?.length && genericTagsCollection.length) {
-      // too complex query
-      if (genericTagsCollection.length > 2) {
-        return [];
-      }
-
-      const rows = await this.createGenericTagsSelectQuery(
-        filter,
-        genericTagsCollection[0],
-        genericTagsCollection[1],
-      )
-        .select([
-          'e.id',
-          'e.pubkey',
-          'e.kind',
-          'e.tags',
-          'e.content',
-          'e.sig',
-          'e.created_at',
-        ])
-        .limit(limit)
-        .execute();
-      return rows.map(this.toEvent);
-    }
-
+    if (limit === 0 || FilterUtils.isMatchNone(filter)) return [];
     const rows = await this.createSelectQuery(filter)
       .select([
         'e.id',
@@ -284,33 +267,38 @@ export class EventRepositorySqlite extends EventRepository {
       ])
       .limit(limit)
       .execute();
+    options.signal?.throwIfAborted();
     return rows.map(this.toEvent);
   }
 
   async count(
     filters: Filter[],
     excludedKinds: number[] = [],
+    options: EventQueryOptions = {},
   ): Promise<number> {
+    options.signal?.throwIfAborted();
     if (filters.length === 0) return 0;
 
-    const queries = filters.flatMap(filter => {
-      const genericTags = this.extractGenericTagsCollectionFrom(filter);
-      if (!filter.ids?.length && genericTags.length > 2) {
-        return [];
-      }
+    const queries = filters
+      .map(filter => FilterUtils.normalize(filter))
+      .flatMap(filter => {
+        const genericTags = this.extractGenericTagsCollectionFrom(filter);
+        if (FilterUtils.isMatchNone(filter)) {
+          return [];
+        }
 
-      const query = this.createSelectQuery(filter, false)
-        .select('e.id')
-        .$if(genericTags.length > 0, qb => qb.distinct())
-        .$if(excludedKinds.length > 0, qb =>
-          qb.where('e.kind', 'not in', excludedKinds),
-        );
-      return [
-        this.db
-          .selectFrom(query.as('matching_filter_events'))
-          .select('matching_filter_events.id'),
-      ];
-    });
+        const query = this.createSelectQuery(filter, false)
+          .select('e.id')
+          .$if(genericTags.length > 0, qb => qb.distinct())
+          .$if(excludedKinds.length > 0, qb =>
+            qb.where('e.kind', 'not in', excludedKinds),
+          );
+        return [
+          this.db
+            .selectFrom(query.as('matching_filter_events'))
+            .select('matching_filter_events.id'),
+        ];
+      });
 
     if (queries.length === 0) return 0;
 
@@ -323,6 +311,7 @@ export class EventRepositorySqlite extends EventRepository {
       .selectFrom(matchingEventsQuery.as('matching_events'))
       .select(eb => eb.fn.countAll<number>().as('count'))
       .executeTakeFirstOrThrow();
+    options.signal?.throwIfAborted();
     return Number(row.count);
   }
 
@@ -418,35 +407,27 @@ export class EventRepositorySqlite extends EventRepository {
       query = query.where('e.id', 'in', andSubQuery);
     }
 
-    // Handle OR tag filters (# prefix) - with AND exclusion already applied
-    const genericTagsCollection = this.extractGenericTagsCollectionFrom(filter);
-    if (genericTagsCollection.length) {
-      const [firstGenericTagsFilter, secondGenericTagsFilter] =
-        genericTagsCollection;
-      query = query.innerJoin('generic_tags as g1', join =>
-        join
-          .onRef('g1.event_id', '=', 'e.id')
-          .on('g1.tag', 'in', firstGenericTagsFilter),
+    // EXISTS-style subqueries handle every tag name without duplicating event rows.
+    for (const values of this.extractGenericTagsCollectionFrom(filter)) {
+      query = query.where(
+        'e.id',
+        'in',
+        this.db
+          .selectFrom('generic_tags')
+          .select('event_id')
+          .where('tag', 'in', values),
       );
-
-      if (secondGenericTagsFilter) {
-        query = query.innerJoin('generic_tags as g2', join =>
-          join
-            .onRef('g2.event_id', '=', 'e.id')
-            .on('g2.tag', 'in', secondGenericTagsFilter),
-        );
-      }
     }
 
     if (filter.ids?.length) {
       query = query.where('e.id', 'in', filter.ids);
     }
 
-    if (filter.since) {
+    if (filter.since !== undefined) {
       query = query.where('e.created_at', '>=', filter.since);
     }
 
-    if (filter.until) {
+    if (filter.until !== undefined) {
       query = query.where('e.created_at', '<=', filter.until);
     }
 
@@ -461,57 +442,6 @@ export class EventRepositorySqlite extends EventRepository {
     return orderByCreatedAt ? query.orderBy('e.created_at desc') : query;
   }
 
-  private createGenericTagsSelectQuery(
-    filter: Filter,
-    firstGenericTagsFilter: string[],
-    secondGenericTagsFilter?: string[],
-  ): eventSelectQueryBuilder {
-    let subQuery = this.db
-      .selectFrom('generic_tags as g')
-      .select('g.event_id')
-      .distinct();
-
-    // Handle AND tag filters (& prefix) first - NIP-91
-    const andTagsCollection = this.extractAndTagsCollectionFrom(filter);
-    for (const { tagName, values } of andTagsCollection) {
-      const andSubQuery = this.createAndTagSubQuery(tagName, values);
-      subQuery = subQuery.where('g.event_id', 'in', andSubQuery);
-    }
-
-    if (secondGenericTagsFilter?.length) {
-      subQuery = subQuery.innerJoin('generic_tags as g2', join =>
-        join
-          .onRef('g2.event_id', '=', 'g.event_id')
-          .on('g2.tag', 'in', secondGenericTagsFilter),
-      );
-    }
-
-    subQuery = subQuery.where('g.tag', 'in', firstGenericTagsFilter);
-
-    if (filter.since) {
-      subQuery = subQuery.where('g.created_at', '>=', filter.since);
-    }
-
-    if (filter.until) {
-      subQuery = subQuery.where('g.created_at', '<=', filter.until);
-    }
-
-    if (filter.authors?.length) {
-      subQuery = subQuery.where('g.author', 'in', filter.authors);
-    }
-
-    if (filter.kinds?.length) {
-      subQuery = subQuery.where('g.kind', 'in', filter.kinds);
-    }
-
-    subQuery.orderBy('g.created_at desc').limit(this.getLimitFrom(filter));
-
-    return this.db
-      .selectFrom('events as e')
-      .where('e.id', 'in', subQuery)
-      .orderBy('e.created_at desc');
-  }
-
   private isGenericTagName(tagName: string): boolean {
     return /^[a-zA-Z]$/.test(tagName);
   }
@@ -523,7 +453,7 @@ export class EventRepositorySqlite extends EventRepository {
   private extractGenericTagsFrom(event: Event): string[] {
     const genericTagSet = new Set<string>();
     event.tags.forEach(([tagName, tagValue]) => {
-      if (this.isGenericTagName(tagName)) {
+      if (this.isGenericTagName(tagName) && tagValue !== undefined) {
         genericTagSet.add(this.toGenericTag(tagName, tagValue));
       }
     });
@@ -532,7 +462,12 @@ export class EventRepositorySqlite extends EventRepository {
 
   private extractGenericTagsCollectionFrom(filter: Filter): string[][] {
     return Object.keys(filter)
-      .filter(key => key.startsWith('#') && filter[key].length > 0)
+      .filter(
+        key =>
+          key.startsWith('#') &&
+          Array.isArray(filter[key]) &&
+          filter[key].length > 0,
+      )
       .map(key => {
         const tagName = key[1];
         const tagValues = filter[key] as string[];
