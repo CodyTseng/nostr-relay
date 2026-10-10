@@ -250,24 +250,4 @@ export class EventUtils {
 
     return true;
   }
-
-  static checkPermission(event: Event, pubkey?: string): boolean {
-    if (event.kind !== EventKind.ENCRYPTED_DIRECT_MESSAGE) {
-      return true;
-    }
-
-    if (!pubkey) {
-      return false;
-    }
-
-    const author = EventUtils.getAuthor(event, false);
-    if (author === pubkey) {
-      return true;
-    }
-
-    const pubkeyTag = event.tags.find(
-      ([tagName]) => tagName === TagName.PUBKEY,
-    );
-    return pubkeyTag ? pubkey === pubkeyTag[1] : false;
-  }
 }

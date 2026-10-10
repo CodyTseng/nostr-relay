@@ -37,13 +37,13 @@ describe('eventService', () => {
       destroy: jest.fn(),
       find$: jest.fn(),
     };
+    pluginManagerService = new PluginManagerService();
     subscriptionService = new SubscriptionService(
       new Map(),
       new ConsoleLoggerService(),
-      true,
+      pluginManagerService,
     );
     subscriptionService.broadcast = jest.fn();
-    pluginManagerService = new PluginManagerService();
     eventService = new EventService(
       eventRepository,
       subscriptionService,

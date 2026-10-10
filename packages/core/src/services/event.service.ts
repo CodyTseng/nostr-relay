@@ -191,9 +191,7 @@ export class EventService {
   }
 
   private async broadcast(event: Event): Promise<void> {
-    return this.pluginManagerService.broadcast(event, e =>
-      this.subscriptionService.broadcast(e),
-    );
+    return this.subscriptionService.broadcast(event);
   }
 
   async destroy(): Promise<void> {

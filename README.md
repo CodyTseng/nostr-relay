@@ -124,12 +124,35 @@ class BlacklistGuardPlugin implements BeforeHandleEventPlugin {
 relay.register(new BlacklistGuardPlugin());
 ```
 
+Read access policies are implemented by plugins. NIP-42 authenticates clients but does not restrict direct message queries, counts, or delivery. Use `HandleMessagePlugin` to guard incoming REQ and COUNT requests, and `CanReadEventPlugin` to control event visibility in both historical REQ results and live delivery. Without a guard plugin, matching events are served regardless of kind or authentication. `EventUtils.checkPermission` has been removed.
+
+### canReadEvent
+
+`CanReadEventPlugin` checks each event against the receiving client's context before it is returned or sent. The hook accepts a synchronous boolean or a promise. All registered read guards must allow access; evaluation stops at the first denial. With no read guards registered, events are readable by default.
+
+```typescript
+import { CanReadEventPlugin, ClientContext, Event } from '@nostr-relay/common';
+
+class AuthenticatedReadPlugin implements CanReadEventPlugin {
+  canReadEvent(ctx: ClientContext, event: Event) {
+    return !!ctx.pubkey;
+  }
+}
+
+relay.register(new AuthenticatedReadPlugin());
+```
+
+Denied historical events are omitted from both EVENT messages and the returned result; EOSE is sent after all read checks complete. A read guard error closes the historical request. During live delivery, a read guard error blocks that client's delivery and is logged; other clients can still receive the event.
+
+`findEvents(filters, ctx, iteratee)` also applies read guards when a `ClientContext` is supplied. Its second parameter now accepts a context instead of a public key. Calls without a context are trusted server-side queries that bypass read guards. `countEvents()` is likewise a trusted server-side API and does not apply per-event read guards. Client COUNT access must be restricted or its filters narrowed in `HandleMessagePlugin` according to the read policy. Calling `next()` and filtering the returned message result is too late to prevent events or counts from being sent.
+
 ### broadcast
 
-This method functions like Koa middleware and is called when an event is broadcast.
+This method functions like Koa middleware and is called once for each client with subscriptions matching a broadcast event. It applies both to newly handled events and direct `relay.broadcast()` calls. Call `next()` to run read guards and deliver allowed events to that client's matching subscriptions; omit it to block delivery. Existing broadcast plugins must update their signature to `(ctx, event, next)` and account for execution per client rather than per event.
 
 Params:
 
+- `ctx`: The receiving client's context, including its authenticated public key.
 - `event`: The event to broadcast.
 - `next`: The next function to call the next plugin.
 
@@ -138,14 +161,14 @@ Example:
 ```typescript
 import { BroadcastPlugin } from '@nostr-relay/common';
 
-class RedisBroadcastPlugin implements BroadcastPlugin {
-  async broadcast(event, next) {
-    await redis.publish('events', JSON.stringify(event));
+class BroadcastGuardPlugin implements BroadcastPlugin {
+  async broadcast(ctx, event, next) {
+    if (!ctx.pubkey) return;
     return next();
   }
 }
 
-relay.register(new RedisBroadcastPlugin());
+relay.register(new BroadcastGuardPlugin());
 ```
 
 ### More to come...

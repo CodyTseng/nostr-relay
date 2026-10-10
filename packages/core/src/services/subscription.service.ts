@@ -7,12 +7,13 @@ import {
   Logger,
   createOutgoingEventMessage,
 } from '@nostr-relay/common';
+import { PluginManagerService } from './plugin-manager.service';
 
 export class SubscriptionService {
   constructor(
     private readonly clientsMap: Map<Client, ClientContext>,
     private readonly logger: Logger,
-    private readonly isNip42Enabled: boolean,
+    private readonly pluginManagerService: PluginManagerService,
   ) {}
 
   subscribe(
@@ -32,27 +33,38 @@ export class SubscriptionService {
   }
 
   async broadcast(event: Event): Promise<void> {
-    try {
-      for (const ctx of this.clientsMap.values()) {
-        if (!ctx.isOpen) continue;
+    for (const ctx of this.clientsMap.values()) {
+      if (!ctx.isOpen) continue;
 
+      try {
+        const subscriptionIds: string[] = [];
         ctx.subscriptions.forEach((filters, subscriptionId) => {
           if (
-            filters.some(filter =>
-              EventUtils.isMatchingFilter(event, filter),
-            ) &&
-            (!this.isNip42Enabled ||
-              EventUtils.checkPermission(event, ctx.pubkey))
+            filters.some(filter => EventUtils.isMatchingFilter(event, filter))
           ) {
-            ctx.sendMessage(createOutgoingEventMessage(subscriptionId, event));
+            subscriptionIds.push(subscriptionId);
           }
         });
+        if (!subscriptionIds.length) continue;
+
+        await this.pluginManagerService.broadcast(ctx, event, async () => {
+          if (!(await this.pluginManagerService.canReadEvent(ctx, event))) {
+            return;
+          }
+          for (const subscriptionId of subscriptionIds) {
+            if (ctx.subscriptions.has(subscriptionId)) {
+              ctx.sendMessage(
+                createOutgoingEventMessage(subscriptionId, event),
+              );
+            }
+          }
+        });
+      } catch (error) {
+        this.logger.error(
+          `[${SubscriptionService.name}.eventListener] ${error.message}`,
+          error,
+        );
       }
-    } catch (error) {
-      this.logger.error(
-        `[${SubscriptionService.name}.eventListener] ${error.message}`,
-        error,
-      );
     }
   }
 }

@@ -337,62 +337,6 @@ describe('EventUtils', () => {
     ).toBe('a09659cd9ee89cd3743bc29aa67edf1d7d12fb624699fcd3d6d33eef250b01e7');
   });
 
-  it('checkPermission', () => {
-    expect(
-      EventUtils.checkPermission({ kind: EventKind.TEXT_NOTE } as Event),
-    ).toBeTruthy();
-
-    expect(
-      EventUtils.checkPermission({
-        kind: EventKind.ENCRYPTED_DIRECT_MESSAGE,
-      } as Event),
-    ).toBeFalsy();
-
-    expect(
-      EventUtils.checkPermission(
-        {
-          kind: EventKind.ENCRYPTED_DIRECT_MESSAGE,
-          pubkey: 'pubkey',
-          tags: [] as string[][],
-        } as Event,
-        'pubkey',
-      ),
-    ).toBeTruthy();
-
-    expect(
-      EventUtils.checkPermission(
-        {
-          kind: EventKind.ENCRYPTED_DIRECT_MESSAGE,
-          pubkey: 'fake',
-          tags: [[TagName.PUBKEY, 'pubkey']],
-        } as Event,
-        'pubkey',
-      ),
-    ).toBeTruthy();
-
-    expect(
-      EventUtils.checkPermission(
-        {
-          kind: EventKind.ENCRYPTED_DIRECT_MESSAGE,
-          pubkey: 'fake',
-          tags: [[TagName.PUBKEY, 'fake']],
-        } as Event,
-        'pubkey',
-      ),
-    ).toBeFalsy();
-
-    expect(
-      EventUtils.checkPermission(
-        {
-          kind: EventKind.ENCRYPTED_DIRECT_MESSAGE,
-          pubkey: 'fake',
-          tags: [] as string[][],
-        } as Event,
-        'pubkey',
-      ),
-    ).toBeFalsy();
-  });
-
   describe('isMatchingFilter tag filters', () => {
     const event = {
       kind: EventKind.TEXT_NOTE,

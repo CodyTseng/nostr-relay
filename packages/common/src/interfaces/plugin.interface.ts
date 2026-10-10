@@ -21,6 +21,7 @@ export type BeforeHandleEventResult = {
 export type NostrRelayPlugin =
   | HandleMessagePlugin
   | BeforeHandleEventPlugin
+  | CanReadEventPlugin
   | BroadcastPlugin;
 
 /**
@@ -87,13 +88,14 @@ export interface BeforeHandleEventPlugin {
 }
 
 /**
- * The plugin implement this interface will be called when an event is broadcasted.
+ * The plugin is called once for each client with subscriptions matching a broadcast event.
+ * Call next() to deliver the event to that client's matching subscriptions.
  *
  * @example
  * ```ts
- * class RedisBroadcastPlugin implements BroadcastPlugin {
+ * class BroadcastGuardPlugin implements BroadcastPlugin {
  *   async broadcast(ctx, event, next) {
- *     await redis.publish('events', JSON.stringify(event));
+ *     if (!ctx.pubkey) return;
  *     return next();
  *   }
  * }
@@ -101,10 +103,27 @@ export interface BeforeHandleEventPlugin {
  */
 export interface BroadcastPlugin {
   /**
-   * This method functions like Koa middleware and is called when an event is broadcasted.
+   * This method functions like Koa middleware and controls delivery to one client.
    *
+   * @param ctx The receiving client's context
    * @param event The event to broadcast
    * @param next The next function to call the next plugin
    */
-  broadcast(event: Event, next: () => Promise<void>): Promise<void>;
+  broadcast(
+    ctx: ClientContext,
+    event: Event,
+    next: () => Promise<void>,
+  ): Promise<void>;
+}
+
+/** Controls event visibility for both historical REQ results and live delivery. */
+export interface CanReadEventPlugin {
+  /**
+   * Return false to hide the event from this client. All registered read guards
+   * must allow access. A thrown error prevents delivery as well.
+   *
+   * @param ctx The receiving client's context
+   * @param event The event to read
+   */
+  canReadEvent(ctx: ClientContext, event: Event): boolean | Promise<boolean>;
 }

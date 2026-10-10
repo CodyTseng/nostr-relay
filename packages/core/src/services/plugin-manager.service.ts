@@ -2,6 +2,7 @@ import {
   BeforeHandleEventPlugin,
   BeforeHandleEventResult,
   BroadcastPlugin,
+  CanReadEventPlugin,
   ClientContext,
   Event,
   HandleMessagePlugin,
@@ -15,6 +16,7 @@ export class PluginManagerService {
   private readonly handleMessagePlugins: HandleMessagePlugin[] = [];
   private readonly beforeHandleEventPlugins: BeforeHandleEventPlugin[] = [];
   private readonly broadcastPlugins: BroadcastPlugin[] = [];
+  private readonly canReadEventPlugins: CanReadEventPlugin[] = [];
 
   register(...plugins: NostrRelayPlugin[]): PluginManagerService {
     plugins.forEach(plugin => {
@@ -26,6 +28,9 @@ export class PluginManagerService {
       }
       if (this.isBroadcastPlugin(plugin)) {
         this.broadcastPlugins.push(plugin);
+      }
+      if (this.isCanReadEventPlugin(plugin)) {
+        this.canReadEventPlugins.push(plugin);
       }
     });
     return this;
@@ -58,11 +63,21 @@ export class PluginManagerService {
     return { canHandle: true };
   }
 
+  async canReadEvent(ctx: ClientContext, event: Event): Promise<boolean> {
+    for (const plugin of this.canReadEventPlugins) {
+      if (!(await plugin.canReadEvent(ctx, event))) {
+        return false;
+      }
+    }
+    return true;
+  }
+
   async broadcast(
+    ctx: ClientContext,
     event: Event,
-    next: (event: Event) => Promise<void>,
+    next: (ctx: ClientContext, event: Event) => Promise<void>,
   ): Promise<void> {
-    return this.compose(this.broadcastPlugins, 'broadcast', next, event);
+    return this.compose(this.broadcastPlugins, 'broadcast', next, ctx, event);
   }
 
   private compose<R>(
@@ -92,6 +107,12 @@ export class PluginManagerService {
     plugin: NostrRelayPlugin,
   ): plugin is HandleMessagePlugin {
     return typeof (plugin as HandleMessagePlugin).handleMessage === 'function';
+  }
+
+  private isCanReadEventPlugin(
+    plugin: NostrRelayPlugin,
+  ): plugin is CanReadEventPlugin {
+    return typeof (plugin as CanReadEventPlugin).canReadEvent === 'function';
   }
 
   private isBroadcastPlugin(

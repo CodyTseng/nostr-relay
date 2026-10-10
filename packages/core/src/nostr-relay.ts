@@ -4,11 +4,9 @@ import {
   ConsoleLoggerService,
   Event,
   EventId,
-  EventKind,
   EventRepository,
   EventUtils,
   Filter,
-  FilterUtils,
   HandleAuthMessageResult,
   HandleCloseMessageResult,
   HandleCountMessageResult,
@@ -31,6 +29,7 @@ import {
   createOutgoingNoticeMessage,
   createOutgoingOkMessage,
 } from '@nostr-relay/common';
+import { concatMap, filter, lastValueFrom, tap, toArray } from 'rxjs';
 import { EventService } from './services/event.service';
 import { PluginManagerService } from './services/plugin-manager.service';
 import { SubscriptionService } from './services/subscription.service';
@@ -70,7 +69,7 @@ export class NostrRelay {
     this.subscriptionService = new SubscriptionService(
       this.clientContexts,
       logger,
-      !!this.hostname,
+      this.pluginManagerService,
     );
     this.eventService = new EventService(
       eventRepository,
@@ -218,7 +217,7 @@ export class NostrRelay {
     filters: Filter[],
   ): Promise<HandleReqMessageResult> {
     try {
-      const events = await this.findEvents(filters, ctx.pubkey, event => {
+      const events = await this.findEvents(filters, ctx, event => {
         ctx.sendMessage(createOutgoingEventMessage(subscriptionId, event));
       });
 
@@ -335,72 +334,40 @@ export class NostrRelay {
   }
 
   /**
-   * Find events by filters.
+   * Find events by filters. Queries with a context apply read guards.
+   * Calls without a context are trusted server-side queries and bypass read guards.
    *
    * @param filters Filters
-   * @param pubkey Public key of the client
+   * @param ctx The requesting client's context
    * @param iteratee Iteratee function to call for each event
    */
   async findEvents(
     filters: Filter[],
-    pubkey?: string,
+    ctx?: ClientContext,
     iteratee?: (event: Event) => void,
   ): Promise<Event[]> {
-    if (
-      this.hostname &&
-      filters.some(filter =>
-        FilterUtils.hasEncryptedDirectMessageKind(filter),
-      ) &&
-      !pubkey
-    ) {
-      throw new UnauthenticatedError(
-        "restricted: we can't serve DMs to unauthenticated users, does your client implement NIP-42?",
-      );
-    }
-
-    return new Promise((resolve, reject) => {
-      const events: Event[] = [];
-      this.eventService.find$(filters).subscribe({
-        next: event => {
-          if (this.hostname && !EventUtils.checkPermission(event, pubkey)) {
-            return;
-          }
-          events.push(event);
-          iteratee?.(event);
-        },
-        error: reject,
-        complete: () => resolve(events),
-      });
-    });
+    return lastValueFrom(
+      this.eventService.find$(filters).pipe(
+        concatMap(async event =>
+          !ctx || (await this.pluginManagerService.canReadEvent(ctx, event))
+            ? event
+            : undefined,
+        ),
+        filter((event): event is Event => event !== undefined),
+        tap(event => iteratee?.(event)),
+        toArray(),
+      ),
+    );
   }
 
-  /** Count distinct stored events matching any filter (NIP-45). */
-  async countEvents(filters: Filter[], pubkey?: string): Promise<number> {
-    if (
-      this.hostname &&
-      filters.some(filter => FilterUtils.hasEncryptedDirectMessageKind(filter))
-    ) {
-      throw new Error(
-        'restricted: encrypted direct message counts are not supported',
-      );
-    }
-
-    if (
-      this.hostname &&
-      !pubkey &&
-      filters.some(filter =>
-        FilterUtils.canIncludeEncryptedDirectMessageKind(filter),
-      )
-    ) {
-      throw new UnauthenticatedError(
-        "restricted: we can't serve counts that may include DMs to unauthenticated users, does your client implement NIP-42?",
-      );
-    }
-
-    const excludedKinds = this.hostname
-      ? [EventKind.ENCRYPTED_DIRECT_MESSAGE]
-      : [];
-    return await this.eventService.count(filters, excludedKinds);
+  /**
+   * Count distinct stored events matching any filter (NIP-45).
+   * @param filters Filters
+   * @param _pubkey Unused; retained for compatibility. Access policies belong in plugins.
+   */
+  async countEvents(filters: Filter[], _pubkey?: string): Promise<number>;
+  async countEvents(filters: Filter[]): Promise<number> {
+    return await this.eventService.count(filters);
   }
 
   private getClientContext(client: Client, ip?: string): ClientContext {
