@@ -216,6 +216,36 @@ export class EventUtils {
       return false;
     }
 
+    for (const [key, values] of Object.entries(filter)) {
+      if (!/^[#&][a-zA-Z]$/.test(key) || !values?.length) {
+        continue;
+      }
+
+      const tagName = key[1];
+      const hasTagValue = (value: string): boolean =>
+        event.tags.some(
+          ([name, tagValue]) => name === tagName && tagValue === value,
+        );
+
+      if (key[0] === '&') {
+        if (!values.every(hasTagValue)) {
+          return false;
+        }
+      } else {
+        // Match the repository's rule: AND values are excluded from OR filters.
+        const andValues = filter[`&${tagName}` as keyof Filter] as
+          | string[]
+          | undefined;
+        const orValues = andValues
+          ? values.filter((value: string) => !andValues.includes(value))
+          : values;
+
+        if (orValues.length && !orValues.some(hasTagValue)) {
+          return false;
+        }
+      }
+    }
+
     // TODO: NIP-50
 
     return true;
